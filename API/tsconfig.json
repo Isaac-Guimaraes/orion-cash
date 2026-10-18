@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "es2020",             /* Versão do JavaScript gerado */
+    "module": "commonjs",           /* Padrão de módulos do Node.js */
+    "lib": ["es6", "dom"],
+    "allowJs": true,
+    "outDir": "./dist",             /* Onde fica o código compilado */
+    "rootDir": "./src",             /* Onde fica seu código fonte */
+    "removeComments": true,
+    
+    /* Configurações de Tipagem */
+    "strict": true,                 /* Ativa verificação rigorosa (O que causou o erro vermelho, e isso é bom!) */
+    "noImplicitAny": true,
+    "strictPropertyInitialization": false, /* Necessário false para Entities do TypeORM */
+    
+    /* Configurações CRUCIAIS para TypeORM */
+    "experimentalDecorators": true,      /* Permite usar @Entity, @Column */
+    "emitDecoratorMetadata": true,       /* Permite o TypeORM ler os tipos */
+    
+    /* Resolução de Módulos */
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

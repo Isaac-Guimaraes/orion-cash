@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  /* Declarando o Design System da Órion no padrão v4 */
+  --color-orion-bg: #0F172A;
+  --color-orion-surface: #1E293B;
+  --color-orion-primary: #F59E0B;
+  --color-orion-accent: #06B6D4;
+  --color-orion-text: #F8FAFC;
+  --color-orion-muted: #94A3B8;
+  --color-orion-success: #10B981;
+  --color-orion-danger: #EF4444;
+}
+
+body {
+  /* Usando as variáveis nativas do CSS em vez do theme() */
+  background-color: var(--color-orion-bg);
+  color: var(--color-orion-text);
+}
+
+/* Personalização da barra de rolagem */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-orion-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-orion-surface);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-orion-muted);
+}

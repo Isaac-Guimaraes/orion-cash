@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+
+# Builds e caches
+.next/
+dist/
+out/
+*.tsbuildinfo
+
+# Variáveis de ambiente (segredos) — use API/.env.example como modelo
+.env
+.env.*
+!.env.example
+
+# Banco de dados local (contém dados reais; faça backup à parte)
+*.sqlite
+*.sqlite-journal
+
+# Logs e sistema
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json

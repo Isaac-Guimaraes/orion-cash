@@ -28,3 +28,18 @@ Thumbs.db
 
 # Vercel (configuração local da CLI)
 .vercel
+
+# Arquivos de IA e documentação interna (ficam só na máquina local)
+docs/
+CONTEXTO-CLAUDE.md
+CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.md
+.claude/
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md
+.aider*

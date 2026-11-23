@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  Truck, Plus, Search, Filter, 
-  Wrench, CheckCircle2, AlertTriangle, Settings2, X, Trash2
-} from "lucide-react";
+import { useState, useEffect, FormEvent } from "react";
+import { Bus, Plus, Wrench, CheckCircle2, AlertTriangle, Settings2, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/src/lib/api";
+import { Modal } from "@/src/components/ui/Modal";
+import { Campo } from "@/src/components/ui/Campo";
+import { useFeedback, mensagemDeErro } from "@/src/components/ui/Feedback";
+import { STATUS_VEICULO, textoDoErro } from "@/src/lib/formatos";
+import { classeBotaoPrimario, classeBotaoSecundario, classeCampo, classeCartao, foco } from "@/src/lib/estilos";
+
+type StatusVeiculo = "ATIVO" | "MANUTENCAO" | "VENDIDO";
 
 interface Veiculo {
   id: string;
@@ -15,55 +19,63 @@ interface Veiculo {
   marca: string;
   ano: number;
   capacidade: number;
-  status: "ATIVO" | "MANUTENCAO" | "VENDIDO";
+  status: StatusVeiculo;
+}
+
+interface FormularioVeiculo {
+  placa: string;
+  marca: string;
+  modelo: string;
+  ano: string;
+  capacidade: string;
+  status: StatusVeiculo;
+}
+
+const anoAtual = new Date().getFullYear();
+const FORMULARIO_VAZIO: FormularioVeiculo = { placa: "", marca: "", modelo: "", ano: String(anoAtual), capacidade: "", status: "ATIVO" };
+type ErrosFormulario = Partial<Record<keyof FormularioVeiculo, string>>;
+
+/** Placa no padrão visual Mercosul (só decoração: o texto da placa continua legível). */
+function PlacaMercosul({ placa }: { placa: string }) {
+  const placaFormatada = placa.length === 7 ? `${placa.substring(0, 3)} ${placa.substring(3)}` : placa;
+  return (
+    <div className="flex flex-col w-[130px] rounded-md overflow-hidden border-2 border-slate-300 bg-white">
+      <div className="bg-blue-700 h-4 w-full flex items-center justify-center" aria-hidden="true">
+        <span className="text-[8px] font-bold text-white tracking-widest uppercase">Brasil</span>
+      </div>
+      <p className="h-10 flex items-center justify-center text-black font-extrabold tracking-widest text-lg font-mono uppercase">
+        <span className="sr-only">Placa </span>{placaFormatada}
+      </p>
+    </div>
+  );
 }
 
 export default function FrotaPage() {
   const router = useRouter();
+  const { avisar, confirmar } = useFeedback();
+
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
 
-  // KPIs
-  const [totalAtivos, setTotalAtivos] = useState(0);
-  const [totalManutencao, setTotalManutencao] = useState(0);
-
-  // Estados do Modal de Cadastro
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editando, setEditando] = useState<Veiculo | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [erroModal, setErroModal] = useState<string | null>(null);
+  const [erros, setErros] = useState<ErrosFormulario>({});
+  const [formData, setFormData] = useState<FormularioVeiculo>(FORMULARIO_VAZIO);
 
-  // Estados do Modal de Edição
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [veiculoEmEdicao, setVeiculoEmEdicao] = useState<Veiculo | null>(null);
-
-  const [formData, setFormData] = useState({
-    placa: "",
-    marca: "",
-    modelo: "",
-    ano: new Date().getFullYear(),
-    capacidade: 0,
-    status: "ATIVO"
-  });
+  const token = () => localStorage.getItem("@OrionCash:token");
 
   async function buscarVeiculos() {
+    setErroCarga(null);
     try {
-      const token = localStorage.getItem("@OrionCash:token");
-      if (!token) return router.push("/login");
-
-      const resposta = await fetch(`${API_URL}/veiculos`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!resposta.ok) throw new Error("Falha ao carregar veículos");
-      
-      const dados: Veiculo[] = await resposta.json();
-      setVeiculos(dados);
-      
-      setTotalAtivos(dados.filter(v => v.status === 'ATIVO').length);
-      setTotalManutencao(dados.filter(v => v.status === 'MANUTENCAO').length);
-
+      if (!token()) return router.push("/login");
+      const resposta = await fetch(`${API_URL}/veiculos`, { headers: { Authorization: `Bearer ${token()}` } });
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível carregar a frota."));
+      setVeiculos(await resposta.json());
     } catch (erro) {
-      console.error(erro);
+      setErroCarga(textoDoErro(erro, "Não foi possível carregar a frota. Verifique sua conexão."));
     } finally {
       setIsLoading(false);
     }
@@ -71,415 +83,231 @@ export default function FrotaPage() {
 
   useEffect(() => {
     buscarVeiculos();
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Função para salvar um NOVO veículo
-  async function handleSalvarVeiculo(e: React.FormEvent) {
+  const totalAtivos = veiculos.filter(v => v.status === "ATIVO").length;
+  const totalManutencao = veiculos.filter(v => v.status === "MANUTENCAO").length;
+
+  const abrirNovo = () => {
+    setEditando(null);
+    setFormData(FORMULARIO_VAZIO);
+    setErros({});
+    setErroModal(null);
+    setIsModalOpen(true);
+  };
+
+  const abrirEdicao = (v: Veiculo) => {
+    setEditando(v);
+    setFormData({ placa: v.placa, marca: v.marca, modelo: v.modelo, ano: String(v.ano), capacidade: String(v.capacidade || ""), status: v.status });
+    setErros({});
+    setErroModal(null);
+    setIsModalOpen(true);
+  };
+
+  function validar(): ErrosFormulario {
+    const novos: ErrosFormulario = {};
+    if (!editando && !/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(formData.placa)) novos.placa = "Informe a placa com 7 caracteres, por exemplo ABC1D23 ou ABC1234.";
+    if (!formData.marca.trim()) novos.marca = "Informe a marca.";
+    if (!formData.modelo.trim()) novos.modelo = "Informe o modelo.";
+    const ano = Number(formData.ano);
+    if (!Number.isInteger(ano) || ano < 1950 || ano > anoAtual + 1) novos.ano = `Informe um ano entre 1950 e ${anoAtual + 1}.`;
+    const lugares = Number(formData.capacidade);
+    if (!Number.isInteger(lugares) || lugares < 1) novos.capacidade = "Informe a quantidade de lugares (passageiros).";
+    return novos;
+  }
+
+  async function handleSalvar(e: FormEvent) {
     e.preventDefault();
     setErroModal(null);
-    setIsSubmitting(true);
+    const novosErros = validar();
+    setErros(novosErros);
+    if (Object.keys(novosErros).length > 0) return;
 
+    setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("@OrionCash:token");
-      
-      const payload = {
-        placa: formData.placa.toUpperCase().trim(),
-        marca: formData.marca,
-        modelo: formData.modelo,
+      const comum = {
+        marca: formData.marca.trim(),
+        modelo: formData.modelo.trim(),
         ano: Number(formData.ano),
         capacidade: Number(formData.capacidade),
-        status: formData.status
+        status: formData.status,
       };
-
-      const resposta = await fetch(`${API_URL}/veiculos`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify(payload)
+      // A placa não pode ser alterada depois do cadastro (regra do backend)
+      const resposta = await fetch(editando ? `${API_URL}/veiculos/${editando.id}` : `${API_URL}/veiculos`, {
+        method: editando ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(editando ? comum : { ...comum, placa: formData.placa }),
       });
-
-      const retorno = await resposta.json();
-      if (!resposta.ok) throw new Error(retorno.mensagem || "Erro ao salvar veículo");
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível salvar o veículo."));
 
       setIsModalOpen(false);
-      setFormData({ placa: "", marca: "", modelo: "", ano: new Date().getFullYear(), capacidade: 0, status: "ATIVO" });
-      buscarVeiculos(); 
-
-    } catch (err: any) {
-      setErroModal(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  // Abir modal de edição preenchido
-  function abrirModalEdicao(veiculo: Veiculo) {
-    setVeiculoEmEdicao({ ...veiculo });
-    setErroModal(null);
-    setIsEditModalOpen(true);
-  }
-
-  // Função para ATUALIZAR veículo existente (PUT)
-  async function handleAtualizarVeiculo(e: React.FormEvent) {
-    e.preventDefault();
-    if (!veiculoEmEdicao) return;
-    
-    setErroModal(null);
-    setIsSubmitting(true);
-
-    try {
-      const token = localStorage.getItem("@OrionCash:token");
-      
-      // O backend não aceita atualizar a placa, então enviamos apenas os outros dados
-      const payload = {
-        marca: veiculoEmEdicao.marca,
-        modelo: veiculoEmEdicao.modelo,
-        ano: Number(veiculoEmEdicao.ano),
-        capacidade: Number(veiculoEmEdicao.capacidade),
-        status: veiculoEmEdicao.status
-      };
-
-      const resposta = await fetch(`${API_URL}/veiculos/${veiculoEmEdicao.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const retorno = await resposta.json();
-      if (!resposta.ok) throw new Error(retorno.mensagem || "Erro ao atualizar veículo");
-
-      setIsEditModalOpen(false);
-      setVeiculoEmEdicao(null);
-      buscarVeiculos(); 
-
-    } catch (err: any) {
-      setErroModal(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  // Função para EXCLUIR veículo (DELETE)
-  async function handleExcluirVeiculo() {
-    if (!veiculoEmEdicao) return;
-    
-    const confirmacao = window.confirm(`Tem a certeza que deseja excluir o veículo placa ${veiculoEmEdicao.placa}? Esta ação não pode ser desfeita.`);
-    if (!confirmacao) return;
-
-    try {
-      const token = localStorage.getItem("@OrionCash:token");
-      
-      const resposta = await fetch(`${API_URL}/veiculos/${veiculoEmEdicao.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!resposta.ok) throw new Error("Erro ao excluir o veículo");
-
-      setIsEditModalOpen(false);
-      setVeiculoEmEdicao(null);
+      avisar(editando ? `Veículo ${editando.placa} atualizado.` : `Veículo ${formData.placa} cadastrado.`);
       buscarVeiculos();
-
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      setErroModal(textoDoErro(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  const PlacaMercosul = ({ placa }: { placa: string }) => {
-    const placaFormatada = placa.length === 7 ? `${placa.substring(0,3)} ${placa.substring(3)}` : placa;
-
-    return (
-      <div className="flex flex-col w-[130px] rounded-md overflow-hidden border-2 border-slate-300 bg-white shadow-inner transform hover:scale-105 transition-transform">
-        <div className="bg-blue-700 h-4 w-full flex items-center justify-between px-1">
-           <div className="w-2 h-2"></div>
-           <span className="text-[8px] font-bold text-white tracking-widest uppercase">Brasil</span>
-           <div className="w-2 h-2 rounded-sm bg-green-500 flex items-center justify-center">
-              <div className="w-1 h-1 rounded-full bg-yellow-400"></div>
-           </div>
-        </div>
-        <div className="h-10 flex items-center justify-center bg-white text-black font-extrabold tracking-widest text-lg font-mono uppercase">
-          {placaFormatada}
-        </div>
-      </div>
-    );
-  };
+  async function handleExcluir() {
+    if (!editando) return;
+    const ok = await confirmar({
+      titulo: "Excluir veículo",
+      mensagem: <>Excluir o veículo <strong className="text-white">{editando.placa}</strong> ({editando.marca} {editando.modelo})? Esta ação não pode ser desfeita.</>,
+      textoConfirmar: "Excluir veículo",
+      perigoso: true,
+    });
+    if (!ok) return;
+    try {
+      const resposta = await fetch(`${API_URL}/veiculos/${editando.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível excluir o veículo."));
+      setIsModalOpen(false);
+      avisar(`Veículo ${editando.placa} excluído.`);
+      buscarVeiculos();
+    } catch (err) {
+      avisar(textoDoErro(err), "erro");
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
-      
-      {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-white text-2xl font-bold tracking-wide">Gestão de Frota</h1>
-          <p className="text-slate-400 text-sm mt-1">Acompanhe os veículos, capacidade e status de manutenção.</p>
+          <h1 className="text-white text-2xl font-bold">Frota</h1>
+          <p className="text-slate-400 text-sm mt-1">Acompanhe os ônibus e vans, a lotação e o que está em manutenção.</p>
         </div>
-        
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-sm px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-[#F59E0B]/20"
-        >
-          <Plus size={18} />
-          Cadastrar Veículo
+        <button type="button" onClick={abrirNovo} className={classeBotaoPrimario}>
+          <Plus size={18} aria-hidden="true" /> Cadastrar veículo
         </button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-400 text-sm font-medium">Total da Frota</span>
-            <div className="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center">
-              <Truck className="text-blue-400" size={18} />
+      <section aria-label="Resumo da frota" className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        {[
+          { rotulo: "Total da frota", valor: veiculos.length, unidade: "veículo(s)", Icone: Bus, cor: "text-orion-accent bg-orion-accent/10" },
+          { rotulo: "Em operação", valor: totalAtivos, unidade: "ativo(s)", Icone: CheckCircle2, cor: "text-emerald-400 bg-emerald-500/10" },
+          { rotulo: "Em manutenção", valor: totalManutencao, unidade: "parado(s)", Icone: Wrench, cor: "text-orion-primary bg-orion-primary/10" },
+        ].map(({ rotulo, valor, unidade, Icone, cor }) => (
+          <div key={rotulo} className={`${classeCartao} p-5 md:p-6`}>
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-slate-300 text-sm font-medium">{rotulo}</p>
+              <span className={`w-8 h-8 rounded-md flex items-center justify-center ${cor}`} aria-hidden="true"><Icone size={18} /></span>
             </div>
+            <p className="text-white text-2xl md:text-3xl font-bold">{valor} <span className="text-base text-slate-400 font-medium">{unidade}</span></p>
           </div>
-          <h3 className="text-white text-3xl font-bold mb-2">{veiculos.length} <span className="text-base text-slate-500 font-medium">veículos</span></h3>
-        </div>
+        ))}
+      </section>
 
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-400 text-sm font-medium">Em Operação</span>
-            <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
-              <CheckCircle2 className="text-emerald-400" size={18} />
-            </div>
-          </div>
-          <h3 className="text-white text-3xl font-bold mb-2">{totalAtivos} <span className="text-base text-slate-500 font-medium">ativos</span></h3>
-        </div>
-
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-400 text-sm font-medium">Em Manutenção</span>
-            <div className="w-8 h-8 rounded-md bg-[#F59E0B]/10 flex items-center justify-center">
-              <Wrench className="text-[#F59E0B]" size={18} />
-            </div>
-          </div>
-          <h3 className="text-white text-3xl font-bold mb-2">{totalManutencao} <span className="text-base text-slate-500 font-medium">parados</span></h3>
-        </div>
-      </div>
-
-      {/* GRID DE VEÍCULOS */}
       {isLoading ? (
-         <div className="text-center py-20 text-slate-500">A carregar a frota...</div>
+        <p className="text-center py-20 text-slate-300">Carregando a frota...</p>
+      ) : erroCarga ? (
+        <div className="text-center py-16">
+          <p className="text-rose-400 mb-3">{erroCarga}</p>
+          <button type="button" onClick={buscarVeiculos} className={classeBotaoSecundario}>Tentar de novo</button>
+        </div>
       ) : veiculos.length === 0 ? (
-         <div className="text-center py-20 text-slate-500">Nenhum veículo cadastrado na sua base de dados.</div>
+        <p className="text-center py-20 text-slate-300">
+          Nenhum veículo cadastrado. Use <strong className="text-white">Cadastrar veículo</strong> para incluir o primeiro.
+        </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
-          {veiculos.map((veiculo) => (
-            <div key={veiculo.id} className="bg-[#1A2235] border border-slate-700/50 rounded-2xl p-6 shadow-lg hover:border-slate-600 transition-colors group relative overflow-hidden">
-              
-              <div className="absolute top-0 right-0 w-32 h-32 bg-slate-800/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-
-              <div className="flex justify-between items-start mb-6">
+        <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+          {veiculos.map(veiculo => (
+            <li key={veiculo.id} className={`${classeCartao} p-5 md:p-6 hover:border-slate-500 transition-colors`}>
+              <div className="flex justify-between items-start gap-3 mb-6">
                 <PlacaMercosul placa={veiculo.placa} />
-                
                 <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
-                  veiculo.status === 'ATIVO' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                  veiculo.status === 'MANUTENCAO' ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20' : 
-                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  veiculo.status === "ATIVO" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" :
+                  veiculo.status === "MANUTENCAO" ? "bg-amber-500/10 text-amber-300 border-amber-500/30" :
+                  "bg-rose-500/10 text-rose-300 border-rose-500/30"
                 }`}>
-                  {veiculo.status === 'ATIVO' ? <CheckCircle2 size={12} /> : 
-                   veiculo.status === 'MANUTENCAO' ? <Wrench size={12} /> : 
-                   <AlertTriangle size={12} />}
-                  {veiculo.status}
+                  {veiculo.status === "ATIVO" ? <CheckCircle2 size={12} aria-hidden="true" /> :
+                   veiculo.status === "MANUTENCAO" ? <Wrench size={12} aria-hidden="true" /> :
+                   <AlertTriangle size={12} aria-hidden="true" />}
+                  {STATUS_VEICULO[veiculo.status] ?? veiculo.status}
                 </span>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-white text-xl font-bold uppercase tracking-wide">{veiculo.marca} {veiculo.modelo}</h4>
-                  <p className="text-slate-400 text-sm">Ano Fab: {veiculo.ano}</p>
-                </div>
+              <h2 className="text-white text-xl font-bold">{veiculo.marca} {veiculo.modelo}</h2>
+              <p className="text-slate-400 text-sm mb-4">Ano {veiculo.ano}</p>
 
-                <div className="flex items-center gap-4 bg-[#0F172A] rounded-xl p-3 border border-slate-800">
-                  <div className="flex-1">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Capacidade Carga</p>
-                    <p className="text-slate-300 font-mono font-medium">{veiculo.capacidade.toLocaleString('pt-BR')} KG</p>
-                  </div>
-                  <div className="w-px h-8 bg-slate-700"></div>
-                  
-                  {/* AQUI ESTÁ O BOTÃO GERENCIAR ATIVADO */}
-                  <div className="flex-1 flex justify-end pr-2">
-                    <button 
-                      onClick={() => abrirModalEdicao(veiculo)}
-                      className="text-[#F59E0B] hover:text-white text-xs font-bold uppercase tracking-wider transition-colors mt-0.5 flex items-center gap-1"
-                    >
-                       <Settings2 size={14} /> Gerenciar
-                    </button>
-                  </div>
+              <div className="flex items-center gap-4 bg-orion-bg rounded-xl p-3 border border-slate-800">
+                <div className="flex-1 flex items-center gap-2">
+                  <Users size={16} className="text-slate-400" aria-hidden="true" />
+                  <p className="text-slate-200 text-sm">
+                    <span className="font-bold">{veiculo.capacidade || "—"}</span> lugares
+                  </p>
                 </div>
-              </div>
-
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ========================================= */}
-      {/* MODAL 1: CADASTRAR NOVO VEÍCULO           */}
-      {/* ========================================= */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#1A2235] border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            
-            <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-[#0F172A]/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Truck className="text-[#F59E0B]" size={20} />
-                Cadastrar Veículo
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSalvarVeiculo} className="p-6 space-y-4">
-              {erroModal && (
-                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-sm font-bold p-3 rounded-lg text-center">
-                  {erroModal}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Placa</label>
-                  <input required type="text" maxLength={7} placeholder="Ex: ABC1D23" value={formData.placa} onChange={(e) => setFormData({...formData, placa: e.target.value.toUpperCase()})} className="w-full bg-[#0F172A] border border-slate-700 text-white font-mono uppercase tracking-widest rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Marca</label>
-                  <input required type="text" placeholder="Ex: Volvo" value={formData.marca} onChange={(e) => setFormData({...formData, marca: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Modelo</label>
-                  <input required type="text" placeholder="Ex: FH 540" value={formData.modelo} onChange={(e) => setFormData({...formData, modelo: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Ano</label>
-                  <input required type="text" inputMode="numeric" maxLength={4} value={formData.ano || ""} onChange={(e) => setFormData({...formData, ano: Number(e.target.value.replace(/\D/g, ''))})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Capacidade (KG)</label>
-                  <input required type="text" inputMode="numeric" placeholder="Ex: 45000" value={formData.capacidade || ""} onChange={(e) => setFormData({...formData, capacidade: Number(e.target.value.replace(/\D/g, ''))})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 font-mono rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Status Inicial</label>
-                  <select required value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B] appearance-none">
-                    <option value="ATIVO">Ativo e Operante</option>
-                    <option value="MANUTENCAO">Em Manutenção</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-slate-700 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-slate-700 text-white font-bold hover:bg-slate-800 transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg bg-[#F59E0B] text-black font-extrabold hover:bg-[#D97706] transition-colors disabled:opacity-70">
-                  {isSubmitting ? "A guardar..." : "Salvar Veículo"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================= */}
-      {/* MODAL 2: EDITAR / GERENCIAR VEÍCULO       */}
-      {/* ========================================= */}
-      {isEditModalOpen && veiculoEmEdicao && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#1A2235] border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            
-            <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-[#0F172A]/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Settings2 className="text-[#F59E0B]" size={20} />
-                Gerenciar Veículo
-              </h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAtualizarVeiculo} className="p-6 space-y-4">
-              
-              {erroModal && (
-                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-sm font-bold p-3 rounded-lg text-center">
-                  {erroModal}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                
-                {/* Placa (Desabilitada conforme backend) */}
-                <div className="col-span-2">
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Placa (Não alterável)</label>
-                  <input 
-                    type="text" 
-                    disabled
-                    value={veiculoEmEdicao.placa} 
-                    className="w-full bg-[#0F172A]/50 border border-slate-800 text-slate-500 font-mono uppercase tracking-widest rounded-lg px-4 py-2.5 cursor-not-allowed" 
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Marca</label>
-                  <input required type="text" value={veiculoEmEdicao.marca} onChange={(e) => setVeiculoEmEdicao({...veiculoEmEdicao, marca: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Modelo</label>
-                  <input required type="text" value={veiculoEmEdicao.modelo} onChange={(e) => setVeiculoEmEdicao({...veiculoEmEdicao, modelo: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Ano</label>
-                  <input required type="text" inputMode="numeric" maxLength={4} value={veiculoEmEdicao.ano || ""} onChange={(e) => setVeiculoEmEdicao({...veiculoEmEdicao, ano: Number(e.target.value.replace(/\D/g, ''))})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Capacidade (KG)</label>
-                  <input required type="text" inputMode="numeric" value={veiculoEmEdicao.capacidade || ""} onChange={(e) => setVeiculoEmEdicao({...veiculoEmEdicao, capacidade: Number(e.target.value.replace(/\D/g, ''))})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 font-mono rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Status Atual</label>
-                  <select required value={veiculoEmEdicao.status} onChange={(e) => setVeiculoEmEdicao({...veiculoEmEdicao, status: e.target.value as any})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B] appearance-none">
-                    <option value="ATIVO">Ativo e Operante</option>
-                    <option value="MANUTENCAO">Em Manutenção</option>
-                    <option value="VENDIDO">Vendido / Inativo</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-slate-700 mt-6 items-center">
-                
-                {/* Botão de Excluir */}
-                <button 
-                  type="button" 
-                  onClick={handleExcluirVeiculo}
-                  className="p-2.5 rounded-lg border border-transparent text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors"
-                  title="Excluir Veículo"
+                <button
+                  type="button"
+                  onClick={() => abrirEdicao(veiculo)}
+                  className={`inline-flex items-center gap-1 min-h-10 px-3 rounded-lg text-orion-primary hover:text-white hover:bg-slate-800 text-sm font-bold ${foco}`}
+                  aria-label={`Gerenciar veículo ${veiculo.placa}`}
                 >
-                  <Trash2 size={20} />
+                  <Settings2 size={16} aria-hidden="true" /> Gerenciar
                 </button>
-
-                <div className="flex-1 flex gap-3">
-                  <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-slate-700 text-white font-bold hover:bg-slate-800 transition-colors">
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg bg-[#F59E0B] text-black font-extrabold hover:bg-[#D97706] transition-colors disabled:opacity-70">
-                    {isSubmitting ? "A guardar..." : "Salvar Alterações"}
-                  </button>
-                </div>
-
               </div>
-
-            </form>
-          </div>
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
 
+      <Modal
+        aberto={isModalOpen}
+        aoFechar={() => setIsModalOpen(false)}
+        titulo={editando ? `Gerenciar veículo ${editando.placa}` : "Cadastrar veículo"}
+        icone={editando ? <Settings2 size={20} /> : <Bus size={20} />}
+      >
+        <form onSubmit={handleSalvar} noValidate className="p-5 sm:p-6 space-y-5">
+          {erroModal && <div role="alert" className="bg-rose-500/10 border border-rose-500/40 text-rose-300 text-sm p-3 rounded-lg">{erroModal}</div>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo rotulo="Placa" erro={erros.placa} dica={editando ? "A placa não pode ser alterada depois do cadastro." : "7 caracteres, sem hífen."} className="sm:col-span-2">
+              {p => (
+                <input {...p} type="text" autoComplete="off" maxLength={7} placeholder="ABC1D23" disabled={!!editando}
+                  value={formData.placa} onChange={e => setFormData({ ...formData, placa: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })}
+                  className={`${classeCampo} font-mono uppercase tracking-widest`} />
+              )}
+            </Campo>
+            <Campo rotulo="Marca" erro={erros.marca}>
+              {p => <input {...p} type="text" placeholder="Ex.: Marcopolo" value={formData.marca} onChange={e => setFormData({ ...formData, marca: e.target.value })} className={classeCampo} />}
+            </Campo>
+            <Campo rotulo="Modelo" erro={erros.modelo}>
+              {p => <input {...p} type="text" placeholder="Ex.: Volare W9" value={formData.modelo} onChange={e => setFormData({ ...formData, modelo: e.target.value })} className={classeCampo} />}
+            </Campo>
+            <Campo rotulo="Ano de fabricação" erro={erros.ano}>
+              {p => <input {...p} type="text" inputMode="numeric" maxLength={4} value={formData.ano} onChange={e => setFormData({ ...formData, ano: e.target.value.replace(/\D/g, "") })} className={classeCampo} />}
+            </Campo>
+            <Campo rotulo="Lugares (passageiros)" erro={erros.capacidade}>
+              {p => <input {...p} type="text" inputMode="numeric" maxLength={3} placeholder="Ex.: 30" value={formData.capacidade} onChange={e => setFormData({ ...formData, capacidade: e.target.value.replace(/\D/g, "") })} className={classeCampo} />}
+            </Campo>
+            <Campo rotulo="Situação" className="sm:col-span-2">
+              {p => (
+                <select {...p} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as StatusVeiculo })} className={classeCampo}>
+                  <option value="ATIVO">Ativo (em operação)</option>
+                  <option value="MANUTENCAO">Em manutenção</option>
+                  {editando && <option value="VENDIDO">Vendido</option>}
+                </select>
+              )}
+            </Campo>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-700">
+            {editando && (
+              <button type="button" onClick={handleExcluir} className={`${classeBotaoSecundario} text-rose-300 border-rose-500/40 hover:bg-rose-500/10 sm:mr-auto`}>
+                <Trash2 size={18} aria-hidden="true" /> Excluir
+              </button>
+            )}
+            <button type="button" onClick={() => setIsModalOpen(false)} className={classeBotaoSecundario}>Cancelar</button>
+            <button type="submit" disabled={isSubmitting} className={classeBotaoPrimario}>
+              {isSubmitting ? "Salvando..." : editando ? "Salvar alterações" : "Salvar veículo"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

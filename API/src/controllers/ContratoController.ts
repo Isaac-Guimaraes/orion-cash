@@ -15,6 +15,14 @@ export class ContratoController {
     return res.json(resultado);
   }
 
+  async atualizar(req: Request<{ id: string }>, res: Response) {
+    const { id } = req.params;
+    const { nomeCliente, cnpj, valorTotal, dataInicio, dataTermino, ativo } = req.body;
+    const servico = new ContratoService();
+    const resultado = await servico.atualizar(id, { nomeCliente, cnpj, valorTotal, dataInicio, dataTermino, ativo });
+    return res.json(resultado);
+  }
+
   async deletar(req: Request<{ id: string }>, res: Response) {
     const { id } = req.params;
     const servico = new ContratoService();

@@ -59,6 +59,11 @@ export class RecuperarSenhaService {
 
   // 2. EXECUTAR A REDEFINIÇÃO
   async redefinir(token: string, novaSenha: string) {
+    // Mesma regra do cadastro (UsuarioService)
+    if (String(novaSenha).length < 8) {
+      throw new AppError("A senha deve ter pelo menos 8 caracteres.");
+    }
+
     const usuario = await this.repositorio.findOneBy({ token_recuperacao: token });
 
     if (!usuario) {

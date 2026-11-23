@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// O "export" aqui é o que o Next.js procura!
-export function middleware(request: NextRequest) {
+// Next.js 16: "proxy" substitui a antiga convenção "middleware".
+// Sem o cookie de sessão, /dashboard redireciona para /login (e vice-versa).
+export function proxy(request: NextRequest) {
   const token = request.cookies.get('orion_token')?.value;
   const urlAtual = request.nextUrl.pathname;
 

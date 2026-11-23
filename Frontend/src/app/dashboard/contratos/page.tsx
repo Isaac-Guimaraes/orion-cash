@@ -1,89 +1,79 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  Building2, Plus, Search, Calendar, 
-  DollarSign, FileText, X, Trash2, ShieldCheck, AlertCircle, RefreshCw
-} from "lucide-react";
+import { useState, useEffect, FormEvent } from "react";
+import { Building2, Plus, DollarSign, FileText, Trash2, Pencil, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/src/lib/api";
+import { Modal } from "@/src/components/ui/Modal";
+import { Campo } from "@/src/components/ui/Campo";
+import { useFeedback, mensagemDeErro } from "@/src/components/ui/Feedback";
+import {
+  formatarMoeda, formatarData, dataIsoLocal, converterValor, valorParaCampo, mascaraCnpj, textoDoErro
+} from "@/src/lib/formatos";
+import {
+  classeBotaoIcone, classeBotaoPrimario, classeBotaoSecundario, classeCampo, classeCartao
+} from "@/src/lib/estilos";
 
-// Interface baseada no backend (Contrato.ts)
 interface Contrato {
   id: string;
   nomeCliente: string;
   cnpj: string;
-  valorMensal: string | number; 
+  valorTotal: number | null;
+  valorMensal: number;
   dataInicio: string;
   dataTermino: string;
   ativo: boolean;
 }
 
+const FORMULARIO_VAZIO = { nomeCliente: "", cnpj: "", valorTotal: "", dataInicio: "", dataTermino: "" };
+type ErrosFormulario = Partial<Record<keyof typeof FORMULARIO_VAZIO, string>>;
+
+/** Mesma regra do backend (API/src/utils/datas.ts → calcularMesesDeDuracao). */
+function previaParcelas(valorTotal: number, dataInicio: string, dataTermino: string): string | null {
+  if (!Number.isFinite(valorTotal) || valorTotal <= 0 || !dataInicio || !dataTermino || dataTermino <= dataInicio) return null;
+  const [ai, mi, di] = dataInicio.split("-").map(Number);
+  const [at, mt, dt] = dataTermino.split("-").map(Number);
+  let meses = at * 12 + mt - (ai * 12 + mi);
+  if (dt > di) meses += 1;
+  meses = Math.max(meses, 1);
+  const totalCentavos = Math.round(valorTotal * 100);
+  const parcela = Math.floor(totalCentavos / meses) / 100;
+  const ultima = (totalCentavos - Math.floor(totalCentavos / meses) * (meses - 1)) / 100;
+  return ultima !== parcela
+    ? `Serão ${meses} parcelas de ${formatarMoeda(parcela)} (a última de ${formatarMoeda(ultima)}).`
+    : `Serão ${meses} parcela(s) mensal(is) de ${formatarMoeda(parcela)}.`;
+}
+
 export default function ContratosPage() {
   const router = useRouter();
+  const { avisar, confirmar } = useFeedback();
+
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
 
-  // Estados dos Filtros
   const [filtroBusca, setFiltroBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("TODOS");
 
-  // Estados do Modal e Formulário
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editando, setEditando] = useState<Contrato | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [erroModal, setErroModal] = useState<string | null>(null);
-  const [isGerando, setIsGerando] = useState(false); 
-  
-  const [formData, setFormData] = useState({
-    nomeCliente: "",
-    cnpj: "",
-    valorTotal: "", // Valor TOTAL do contrato; o backend calcula a parcela mensal
-    dataInicio: "",
-    dataTermino: ""
-  });
+  const [erros, setErros] = useState<ErrosFormulario>({});
+  const [formData, setFormData] = useState(FORMULARIO_VAZIO);
+  const [isGerando, setIsGerando] = useState(false);
 
-  // Função do motor de faturamento recorrente
-  async function handleGerarFaturamento() {
-    setIsGerando(true);
-    try {
-      const token = localStorage.getItem("@OrionCash:token");
+  const token = () => localStorage.getItem("@OrionCash:token");
 
-      const resposta = await fetch(`${API_URL}/contratos/faturamento`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
-        },
-        // O backend identifica o operador pelo token JWT
-      });
-      
-      const dados = await resposta.json();
-      if (!resposta.ok) throw new Error(dados.mensagem || "Erro ao gerar faturas");
-      
-      alert(`✅ Sucesso!\nNovas faturas geradas: ${dados.faturasGeradas}\nFaturas atualizadas: ${dados.faturasAtualizadas}\nContratos fora de vigência: ${dados.contratosForaDeVigencia ?? 0}`);
-    } catch (err: any) {
-      alert("Erro: " + err.message);
-    } finally {
-      setIsGerando(false);
-    }
-  }
-
-  // Busca inicial dos contratos cadastrados
   async function buscarContratos() {
+    setErroCarga(null);
     try {
-      const token = localStorage.getItem("@OrionCash:token");
-      if (!token) return router.push("/login");
-
-      const resposta = await fetch(`${API_URL}/contratos`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!resposta.ok) throw new Error("Erro ao buscar contratos");
-      
-      const dados = await resposta.json();
-      setContratos(dados);
+      if (!token()) return router.push("/login");
+      const resposta = await fetch(`${API_URL}/contratos`, { headers: { Authorization: `Bearer ${token()}` } });
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível carregar os contratos."));
+      setContratos(await resposta.json());
     } catch (erro) {
-      console.error("Falha", erro);
+      setErroCarga(textoDoErro(erro, "Não foi possível carregar os contratos. Verifique sua conexão."));
     } finally {
       setIsLoading(false);
     }
@@ -91,250 +81,269 @@ export default function ContratosPage() {
 
   useEffect(() => {
     buscarContratos();
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Salvar novo Contrato
-  async function handleSalvarContrato(e: React.FormEvent) {
+  async function handleGerarFaturamento() {
+    setIsGerando(true);
+    try {
+      const resposta = await fetch(`${API_URL}/contratos/faturamento`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível gerar as faturas."));
+      const dados = await resposta.json();
+      const partes = [`${dados.faturasGeradas} nova(s) fatura(s)`];
+      if (dados.faturasAtualizadas) partes.push(`${dados.faturasAtualizadas} atualizada(s)`);
+      if (dados.contratosForaDeVigencia) partes.push(`${dados.contratosForaDeVigencia} contrato(s) fora da vigência`);
+      avisar(`Faturamento do mês processado: ${partes.join(", ")}. As faturas aparecem no Financeiro como pendentes.`);
+    } catch (err) {
+      avisar(textoDoErro(err), "erro");
+    } finally {
+      setIsGerando(false);
+    }
+  }
+
+  const abrirNovo = () => {
+    setEditando(null);
+    setFormData(FORMULARIO_VAZIO);
+    setErros({});
+    setErroModal(null);
+    setIsModalOpen(true);
+  };
+
+  const abrirEdicao = (c: Contrato) => {
+    setEditando(c);
+    setFormData({
+      nomeCliente: c.nomeCliente,
+      cnpj: mascaraCnpj(c.cnpj),
+      valorTotal: c.valorTotal != null ? valorParaCampo(c.valorTotal) : "",
+      dataInicio: c.dataInicio.slice(0, 10),
+      dataTermino: c.dataTermino.slice(0, 10),
+    });
+    setErros({});
+    setErroModal(null);
+    setIsModalOpen(true);
+  };
+
+  function validar(): ErrosFormulario {
+    const novos: ErrosFormulario = {};
+    if (!formData.nomeCliente.trim()) novos.nomeCliente = "Informe o nome do cliente.";
+    if (formData.cnpj.replace(/\D/g, "").length !== 14) novos.cnpj = "Informe os 14 dígitos do CNPJ.";
+    const valor = converterValor(formData.valorTotal);
+    if (!Number.isFinite(valor) || valor <= 0) novos.valorTotal = "Informe o valor total, por exemplo 120.000,00.";
+    if (!formData.dataInicio) novos.dataInicio = "Informe a data de início.";
+    if (!formData.dataTermino) novos.dataTermino = "Informe a data de término.";
+    else if (formData.dataInicio && formData.dataTermino <= formData.dataInicio) novos.dataTermino = "O término deve ser depois do início.";
+    return novos;
+  }
+
+  async function handleSalvarContrato(e: FormEvent) {
     e.preventDefault();
     setErroModal(null);
+    const novosErros = validar();
+    setErros(novosErros);
+    if (Object.keys(novosErros).length > 0) return;
+
     setIsSubmitting(true);
-
     try {
-      const token = localStorage.getItem("@OrionCash:token");
       const payload = {
-        ...formData,
-        valorTotal: Number(formData.valorTotal)
+        nomeCliente: formData.nomeCliente.trim(),
+        cnpj: formData.cnpj.replace(/\D/g, ""),
+        valorTotal: converterValor(formData.valorTotal),
+        dataInicio: formData.dataInicio,
+        dataTermino: formData.dataTermino,
       };
-
-      const resposta = await fetch(`${API_URL}/contratos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
+      const resposta = await fetch(editando ? `${API_URL}/contratos/${editando.id}` : `${API_URL}/contratos`, {
+        method: editando ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(payload),
       });
-
-      const retorno = await resposta.json();
-      if (!resposta.ok) throw new Error(retorno.mensagem || "Erro ao salvar contrato");
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível salvar o contrato."));
 
       setIsModalOpen(false);
-      setFormData({ nomeCliente: "", cnpj: "", valorTotal: "", dataInicio: "", dataTermino: "" });
-      buscarContratos(); 
-    } catch (err: any) {
-      setErroModal(err.message);
+      avisar(editando ? "Contrato atualizado." : "Contrato cadastrado.");
+      buscarContratos();
+    } catch (err) {
+      setErroModal(textoDoErro(err));
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  // Deletar Contrato (Soft Delete)
-  async function handleExcluir(id: string) {
-    if (!confirm("Tem certeza que deseja excluir este contrato? Ele deixará de gerar faturamento.")) return;
+  async function handleExcluir(c: Contrato) {
+    const ok = await confirmar({
+      titulo: "Excluir contrato",
+      mensagem: <>Excluir o contrato de <strong className="text-white">{c.nomeCliente}</strong>? Ele deixará de gerar faturas. As faturas já lançadas continuam no Financeiro.</>,
+      textoConfirmar: "Excluir contrato",
+      perigoso: true,
+    });
+    if (!ok) return;
     try {
-      const token = localStorage.getItem("@OrionCash:token");
-      await fetch(`${API_URL}/contratos/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const resposta = await fetch(`${API_URL}/contratos/${c.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}` },
       });
-      setContratos(prev => prev.filter(c => c.id !== id));
+      if (!resposta.ok) throw new Error(await mensagemDeErro(resposta, "Não foi possível excluir o contrato."));
+      setContratos(prev => prev.filter(x => x.id !== c.id));
+      avisar("Contrato excluído.");
     } catch (err) {
-      console.error(err);
-      alert("Erro ao excluir contrato.");
+      avisar(textoDoErro(err), "erro");
     }
   }
 
-  // Funções Utilitárias de Formatação
-  const formatarCNPJ = (cnpj: string) => cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-  
-  const formatarData = (dataIso: string) => {
-    if (!dataIso) return "-";
-    const [ano, mes, dia] = dataIso.split('T')[0].split('-');
-    return `${dia}/${mes}/${ano}`;
-  };
+  const hoje = dataIsoLocal();
+  const daquiTrintaDias = (() => { const d = new Date(); d.setDate(d.getDate() + 30); return dataIsoLocal(d); })();
 
-  const formatarMoeda = (valor: number | string) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor));
-  };
-
-  // Lógica de Filtragem da Tabela
   const contratosFiltrados = contratos.filter(c => {
-    let passou = true;
-    if (filtroStatus === "ATIVOS" && !c.ativo) passou = false;
-    if (filtroStatus === "INATIVOS" && c.ativo) passou = false;
-    
+    if (filtroStatus === "ATIVOS" && !c.ativo) return false;
+    if (filtroStatus === "INATIVOS" && c.ativo) return false;
     if (filtroBusca) {
       const termo = filtroBusca.toLowerCase();
-      if (!c.nomeCliente.toLowerCase().includes(termo) && !c.cnpj.includes(termo)) {
-        passou = false;
-      }
+      const termoDigitos = filtroBusca.replace(/\D/g, "");
+      const casaNome = c.nomeCliente.toLowerCase().includes(termo);
+      const casaCnpj = termoDigitos.length > 0 && c.cnpj.includes(termoDigitos);
+      if (!casaNome && !casaCnpj) return false;
     }
-    return passou;
+    return true;
   });
 
-  // Cálculos de KPIs
   const contratosAtivos = contratos.filter(c => c.ativo);
-  const receitaRecorrente = contratosAtivos.reduce((acc, c) => acc + Number(c.valorMensal), 0);
-  
-  const hoje = new Date();
-  const trintaDias = new Date();
-  trintaDias.setDate(hoje.getDate() + 30);
-  
+  const receitaMensal = contratosAtivos.reduce((acc, c) => acc + Number(c.valorMensal), 0);
+  // Comparação por string "AAAA-MM-DD": sem conversão para Date UTC
   const aVencer = contratosAtivos.filter(c => {
-    const termino = new Date(c.dataTermino);
-    return termino <= trintaDias && termino >= hoje;
+    const termino = c.dataTermino.slice(0, 10);
+    return termino >= hoje && termino <= daquiTrintaDias;
   });
+
+  const previa = previaParcelas(converterValor(formData.valorTotal), formData.dataInicio, formData.dataTermino);
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
-      
-      {/* CABEÇALHO E BOTÕES DE AÇÃO */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-white text-2xl font-bold tracking-wide">Contratos e Recorrência</h1>
-          <p className="text-slate-400 text-sm mt-1">Gira os contratos fixos e garanta a previsibilidade financeira.</p>
+          <h1 className="text-white text-2xl font-bold">Contratos</h1>
+          <p className="text-slate-400 text-sm mt-1">Gerencie os contratos fixos e gere as faturas de cada mês.</p>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleGerarFaturamento}
-            disabled={isGerando}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={isGerando ? "animate-spin" : ""} />
-            {isGerando ? "A processar..." : "Gerar Faturas do Mês"}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button type="button" onClick={handleGerarFaturamento} disabled={isGerando} className={classeBotaoSecundario}>
+            <RefreshCw size={18} aria-hidden="true" className={`text-orion-accent ${isGerando ? "motion-safe:animate-spin" : ""}`} />
+            {isGerando ? "Gerando faturas..." : "Gerar faturas do mês"}
           </button>
-
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[#F59E0B] hover:bg-[#D97706] text-black font-bold text-sm px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-[#F59E0B]/20"
-          >
-            <Plus size={18} />
-            Novo Contrato
+          <button type="button" onClick={abrirNovo} className={classeBotaoPrimario}>
+            <Plus size={18} aria-hidden="true" /> Novo contrato
           </button>
         </div>
       </div>
 
-      {/* CARTÕES DE KPI */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg">
+      <section aria-label="Resumo dos contratos" className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className={`${classeCartao} p-5 md:p-6`}>
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-400 text-sm font-medium">Contratos Ativos</span>
-            <div className="w-8 h-8 rounded-md bg-indigo-500/10 flex items-center justify-center">
-              <FileText className="text-indigo-400" size={18} />
-            </div>
+            <p className="text-slate-300 text-sm font-medium">Contratos ativos</p>
+            <span className="w-8 h-8 rounded-md bg-orion-accent/10 text-orion-accent flex items-center justify-center" aria-hidden="true"><FileText size={18} /></span>
           </div>
-          <h3 className="text-white text-3xl font-bold mb-2">{contratosAtivos.length} <span className="text-sm text-slate-500 font-medium">clientes</span></h3>
+          <p className="text-white text-2xl md:text-3xl font-bold">{contratosAtivos.length} <span className="text-sm text-slate-400 font-medium">cliente(s)</span></p>
         </div>
 
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-10 -mt-10"></div>
-          <div className="flex justify-between items-start mb-4 relative z-10">
-            <span className="text-slate-400 text-sm font-medium">Receita Recorrente (MRR)</span>
-            <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
-              <DollarSign className="text-emerald-400" size={18} />
-            </div>
-          </div>
-          <h3 className="text-emerald-400 text-3xl font-bold mb-2 relative z-10">{formatarMoeda(receitaRecorrente)}</h3>
-        </div>
-
-        <div className="bg-[#1A2235] p-6 rounded-2xl border border-slate-700/50 shadow-lg">
+        <div className={`${classeCartao} p-5 md:p-6`}>
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-400 text-sm font-medium">A Vencer (30 dias)</span>
-            <div className="w-8 h-8 rounded-md bg-[#F59E0B]/10 flex items-center justify-center">
-              <AlertCircle className="text-[#F59E0B]" size={18} />
-            </div>
+            <p className="text-slate-300 text-sm font-medium">Receita mensal dos contratos</p>
+            <span className="w-8 h-8 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center" aria-hidden="true"><DollarSign size={18} /></span>
           </div>
-          <h3 className={`text-3xl font-bold mb-2 ${aVencer.length > 0 ? 'text-[#F59E0B]' : 'text-slate-300'}`}>
-            {aVencer.length} <span className="text-sm text-slate-500 font-medium">contratos</span>
-          </h3>
+          <p className="text-emerald-400 text-2xl md:text-3xl font-bold">{formatarMoeda(receitaMensal)}</p>
         </div>
-      </div>
 
-      {/* BARRA DE FILTROS */}
-      <div className="bg-[#1A2235] p-4 rounded-xl border border-slate-700/50 flex flex-wrap gap-4 items-end shadow-lg">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-slate-400 font-medium mb-1.5 block">Buscar Cliente ou CNPJ</label>
-          <div className="relative">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-             <input 
-               type="text" 
-               placeholder="Pesquisar..." 
-               value={filtroBusca}
-               onChange={(e) => setFiltroBusca(e.target.value)}
-               className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 text-sm rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-[#F59E0B]" 
-             />
+        <div className={`${classeCartao} p-5 md:p-6`}>
+          <div className="flex justify-between items-start mb-4">
+            <p className="text-slate-300 text-sm font-medium">Terminam nos próximos 30 dias</p>
+            <span className="w-8 h-8 rounded-md bg-orion-primary/10 text-orion-primary flex items-center justify-center" aria-hidden="true"><AlertCircle size={18} /></span>
           </div>
+          <p className={`text-2xl md:text-3xl font-bold ${aVencer.length > 0 ? "text-orion-primary" : "text-white"}`}>
+            {aVencer.length} <span className="text-sm text-slate-400 font-medium">contrato(s)</span>
+          </p>
         </div>
+      </section>
 
-        <div className="w-[200px]">
-          <label className="text-xs text-slate-400 font-medium mb-1.5 block">Status</label>
-          <select 
-            value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value)}
-            className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:border-[#F59E0B] appearance-none"
-          >
-            <option value="TODOS">Todos</option>
-            <option value="ATIVOS">Apenas Ativos</option>
-            <option value="INATIVOS">Inativos / Vencidos</option>
-          </select>
-        </div>
-      </div>
+      <section aria-label="Filtros" className={`${classeCartao} rounded-xl p-4 grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-4 items-end`}>
+        <Campo rotulo="Buscar por cliente ou CNPJ">
+          {p => <input {...p} type="search" placeholder="Ex.: Prefeitura ou 12.345.678" value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} className={classeCampo} />}
+        </Campo>
+        <Campo rotulo="Situação">
+          {p => (
+            <select {...p} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} className={classeCampo}>
+              <option value="TODOS">Todos</option>
+              <option value="ATIVOS">Somente ativos</option>
+              <option value="INATIVOS">Inativos</option>
+            </select>
+          )}
+        </Campo>
+      </section>
 
-      {/* TABELA DE CONTRATOS */}
-      <div className="bg-[#1A2235] rounded-xl border border-slate-700/50 overflow-hidden shadow-lg">
+      <section className={`${classeCartao} rounded-xl`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#0F172A]/50 text-slate-400 text-[10px] font-bold tracking-widest uppercase border-b border-slate-700/50">
+            <caption className="sr-only">Contratos: {contratosFiltrados.length} registro(s)</caption>
+            <thead className="bg-orion-bg/50 text-slate-300 text-xs font-bold tracking-wide uppercase border-b border-slate-700/50">
               <tr>
-                <th className="px-6 py-4">Cliente / CNPJ</th>
-                <th className="px-6 py-4">Início</th>
-                <th className="px-6 py-4">Término</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Valor Mensal</th>
-                <th className="px-6 py-4 text-center">Ações</th>
+                <th scope="col" className="px-4 md:px-6 py-4">Cliente / CNPJ</th>
+                <th scope="col" className="px-4 md:px-6 py-4">Início</th>
+                <th scope="col" className="px-4 md:px-6 py-4">Término</th>
+                <th scope="col" className="px-4 md:px-6 py-4 text-center">Situação</th>
+                <th scope="col" className="px-4 md:px-6 py-4 text-right">Parcela mensal</th>
+                <th scope="col" className="px-4 md:px-6 py-4 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
               {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">A carregar contratos...</td></tr>
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-300">Carregando contratos...</td></tr>
+              ) : erroCarga ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center">
+                    <p className="text-rose-400 mb-3">{erroCarga}</p>
+                    <button type="button" onClick={buscarContratos} className={classeBotaoSecundario}>Tentar de novo</button>
+                  </td>
+                </tr>
               ) : contratosFiltrados.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Nenhum contrato encontrado.</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-slate-300 whitespace-normal">
+                    {contratos.length === 0
+                      ? <>Nenhum contrato cadastrado. Use <strong className="text-white">Novo contrato</strong> para cadastrar o primeiro.</>
+                      : "Nenhum contrato encontrado com estes filtros."}
+                  </td>
+                </tr>
               ) : (
-                contratosFiltrados.map((c) => (
+                contratosFiltrados.map(c => (
                   <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-4 md:px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700">
-                          <Building2 size={14} className="text-[#F59E0B]" />
-                        </div>
+                        <span className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700" aria-hidden="true">
+                          <Building2 size={14} className="text-orion-primary" />
+                        </span>
                         <div>
                           <p className="text-white font-bold">{c.nomeCliente}</p>
-                          <p className="text-xs text-slate-500 font-mono mt-0.5">{formatarCNPJ(c.cnpj)}</p>
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">{mascaraCnpj(c.cnpj)}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-300">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={14} className="text-slate-500" /> {formatarData(c.dataInicio)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">{formatarData(c.dataTermino)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`text-[10px] uppercase font-bold px-3 py-1.5 rounded-full border ${
-                        c.ativo ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                    <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(c.dataInicio)}</td>
+                    <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(c.dataTermino)}</td>
+                    <td className="px-4 md:px-6 py-4 text-center">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                        c.ativo ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/30" : "text-slate-300 bg-slate-500/10 border-slate-500/30"
                       }`}>
-                        {c.ativo ? 'Ativo' : 'Inativo'}
+                        {c.ativo ? "Ativo" : "Inativo"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right font-bold text-emerald-400">
-                      {formatarMoeda(c.valorMensal)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button 
-                        onClick={() => handleExcluir(c.id)}
-                        className="text-slate-500 hover:text-rose-400 transition-colors p-2 rounded-lg hover:bg-rose-500/10"
-                        title="Excluir Contrato"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                    <td className="px-4 md:px-6 py-4 text-right font-bold text-emerald-400">{formatarMoeda(c.valorMensal)}</td>
+                    <td className="px-4 md:px-6 py-2">
+                      <div className="flex justify-center gap-1">
+                        <button type="button" onClick={() => abrirEdicao(c)} className={classeBotaoIcone} aria-label={`Editar contrato de ${c.nomeCliente}`} title="Editar">
+                          <Pencil size={18} aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => handleExcluir(c)} className={`${classeBotaoIcone} text-rose-400`} aria-label={`Excluir contrato de ${c.nomeCliente}`} title="Excluir">
+                          <Trash2 size={18} aria-hidden="true" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -342,92 +351,54 @@ export default function ContratosPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      {/* MODAL DE NOVO CONTRATO */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#1A2235] border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95">
-            
-            <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-[#0F172A]/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <ShieldCheck className="text-[#F59E0B]" size={20} />
-                Novo Contrato Recorrente
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-rose-400 transition-colors p-1 rounded-lg hover:bg-slate-800">
-                <X size={20} />
-              </button>
-            </div>
+      <Modal
+        aberto={isModalOpen}
+        aoFechar={() => setIsModalOpen(false)}
+        titulo={editando ? "Editar contrato" : "Novo contrato"}
+        icone={<ShieldCheck size={20} />}
+      >
+        <form onSubmit={handleSalvarContrato} noValidate className="p-5 sm:p-6 space-y-5">
+          {erroModal && <div role="alert" className="bg-rose-500/10 border border-rose-500/40 text-rose-300 text-sm p-3 rounded-lg">{erroModal}</div>}
 
-            <form onSubmit={handleSalvarContrato} className="p-6 space-y-4">
-              
-              {erroModal && (
-                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-500 text-sm font-bold p-3 rounded-lg text-center">
-                  {erroModal}
-                </div>
-              )}
+          <Campo rotulo="Nome do cliente" erro={erros.nomeCliente}>
+            {p => <input {...p} type="text" autoComplete="organization" placeholder="Ex.: Prefeitura de Irecê" value={formData.nomeCliente} onChange={e => setFormData({ ...formData, nomeCliente: e.target.value })} className={classeCampo} />}
+          </Campo>
 
-              <div>
-                <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Nome do Cliente</label>
-                <input required type="text" placeholder="Ex: Prefeitura de Irecê" value={formData.nomeCliente} onChange={(e) => setFormData({...formData, nomeCliente: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">CNPJ (Apenas Números)</label>
-                  <input required type="text" maxLength={14} placeholder="00000000000100" value={formData.cnpj} onChange={(e) => setFormData({...formData, cnpj: e.target.value.replace(/\D/g, '')})} className="w-full bg-[#0F172A] border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                </div>
-                
-                {/* BLOCO DO VALOR TOTAL E PRÉ-VISUALIZAÇÃO DA PARCELA */}
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Valor Total do Contrato (R$)</label>
-                  <input required type="number" step="0.01" placeholder="120000.00" value={formData.valorTotal} onChange={(e) => setFormData({...formData, valorTotal: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-emerald-400 font-bold font-mono rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B]" />
-                  
-                  {formData.valorTotal && formData.dataInicio && formData.dataTermino && (
-                    <p className="text-[11px] text-[#F59E0B] font-medium mt-2 flex items-center gap-1 bg-[#F59E0B]/10 p-1.5 rounded border border-[#F59E0B]/20">
-                      {(() => {
-                        // Mesma regra do backend (API/src/utils/datas.ts → calcularMesesDeDuracao)
-                        const [ai, mi, di] = formData.dataInicio.split('-').map(Number);
-                        const [at, mt, dt] = formData.dataTermino.split('-').map(Number);
-                        let m = (at * 12 + mt) - (ai * 12 + mi);
-                        if (dt > di) m += 1;
-                        if (m <= 0) m = 1;
-                        const totalCentavos = Math.round(Number(formData.valorTotal) * 100);
-                        const parcela = Math.floor(totalCentavos / m) / 100;
-                        const ultima = (totalCentavos - Math.floor(totalCentavos / m) * (m - 1)) / 100;
-                        return ultima !== parcela
-                          ? `Gerará ${m} parcelas de ${formatarMoeda(parcela)} (última de ${formatarMoeda(ultima)})`
-                          : `Gerará ${m} parcelas mensais de ${formatarMoeda(parcela)}`;
-                      })()}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Data de Início</label>
-                  <input required type="date" value={formData.dataInicio} onChange={(e) => setFormData({...formData, dataInicio: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B] [color-scheme:dark]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1.5 block">Data de Término</label>
-                  <input required type="date" value={formData.dataTermino} onChange={(e) => setFormData({...formData, dataTermino: e.target.value})} className="w-full bg-[#0F172A] border border-slate-700 text-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#F59E0B] [color-scheme:dark]" />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-slate-700 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-slate-700 text-white font-bold hover:bg-slate-800 transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg bg-[#F59E0B] text-black font-extrabold hover:bg-[#D97706] transition-colors disabled:opacity-70 flex justify-center items-center shadow-lg shadow-[#F59E0B]/20">
-                  {isSubmitting ? "A Guardar..." : "Salvar Contrato"}
-                </button>
-              </div>
-
-            </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo rotulo="CNPJ" erro={erros.cnpj}>
+              {p => <input {...p} type="text" inputMode="numeric" autoComplete="off" placeholder="00.000.000/0000-00" value={formData.cnpj} onChange={e => setFormData({ ...formData, cnpj: mascaraCnpj(e.target.value) })} className={`${classeCampo} font-mono`} />}
+            </Campo>
+            <Campo rotulo="Valor total do contrato (R$)" erro={erros.valorTotal} dica="A parcela mensal é calculada automaticamente.">
+              {p => <input {...p} type="text" inputMode="decimal" autoComplete="off" placeholder="120.000,00" value={formData.valorTotal} onChange={e => setFormData({ ...formData, valorTotal: e.target.value })} className={`${classeCampo} font-mono`} />}
+            </Campo>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo rotulo="Data de início" erro={erros.dataInicio}>
+              {p => <input {...p} type="date" value={formData.dataInicio} onChange={e => setFormData({ ...formData, dataInicio: e.target.value })} className={classeCampo} />}
+            </Campo>
+            <Campo rotulo="Data de término" erro={erros.dataTermino}>
+              {p => <input {...p} type="date" value={formData.dataTermino} onChange={e => setFormData({ ...formData, dataTermino: e.target.value })} className={classeCampo} />}
+            </Campo>
+          </div>
+
+          {previa && (
+            <p aria-live="polite" className="text-sm text-amber-200 bg-orion-primary/10 border border-orion-primary/30 p-3 rounded-lg">{previa}</p>
+          )}
+          {editando && (
+            <p className="text-xs text-slate-400">Faturas pendentes do mês são ajustadas ao novo valor na próxima vez que você gerar as faturas.</p>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-700">
+            <button type="button" onClick={() => setIsModalOpen(false)} className={`${classeBotaoSecundario} flex-1`}>Cancelar</button>
+            <button type="submit" disabled={isSubmitting} className={`${classeBotaoPrimario} flex-1`}>
+              {isSubmitting ? "Salvando..." : editando ? "Salvar alterações" : "Salvar contrato"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -88,6 +88,56 @@ export class ContratoService {
     });
   }
 
+  /**
+   * Edita um contrato. Campos omitidos mantêm o valor atual.
+   * A parcela mensal é recalculada; faturas PENDENTES do mês são ajustadas
+   * na próxima geração de faturamento (upsert em gerarFaturamentoMensal).
+   */
+  async atualizar(id: string, dados: Partial<IDadosContrato> & { ativo?: boolean }) {
+    const contrato = await this.repositorio.findOneBy({ id });
+    if (!contrato) throw new AppError("Contrato não encontrado.", 404);
+
+    const nomeCliente = (dados.nomeCliente ?? contrato.nomeCliente)?.trim();
+    if (!nomeCliente) {
+      throw new AppError("O nome do cliente é obrigatório.");
+    }
+
+    const cnpjNormalizado = String(dados.cnpj ?? contrato.cnpj).replace(/\D/g, "");
+    if (cnpjNormalizado.length !== 14) {
+      throw new AppError("CNPJ inválido. Informe os 14 dígitos.");
+    }
+    if (cnpjNormalizado !== contrato.cnpj) {
+      const outro = await this.repositorio.findOne({ where: { cnpj: cnpjNormalizado }, withDeleted: true });
+      if (outro) throw new AppError("Já existe um contrato com este CNPJ.");
+    }
+
+    const inicio = paraDataLocal(dados.dataInicio ?? contrato.dataInicio);
+    const termino = paraDataLocal(dados.dataTermino ?? contrato.dataTermino);
+    if (termino <= inicio) {
+      throw new AppError("A data de término deve ser posterior à data de início.");
+    }
+
+    const meses = calcularMesesDeDuracao(inicio, termino);
+    // Contratos antigos não têm valorTotal: reconstrói a partir da parcela gravada
+    const total = Number(
+      dados.valorTotal ?? contrato.valorTotal ?? Number(contrato.valorMensal) * meses
+    );
+    if (!Number.isFinite(total) || total <= 0) {
+      throw new AppError("O valor deve ser positivo.");
+    }
+
+    contrato.nomeCliente = nomeCliente;
+    contrato.cnpj = cnpjNormalizado;
+    contrato.dataInicio = inicio;
+    contrato.dataTermino = termino;
+    contrato.valorTotal = arredondar2(total);
+    contrato.valorMensal = calcularValorParcela(total, meses, 0);
+    if (typeof dados.ativo === "boolean") contrato.ativo = dados.ativo;
+
+    await this.repositorio.save(contrato);
+    return contrato;
+  }
+
   async deletar(id: string) {
     const contrato = await this.repositorio.findOneBy({ id });
     if (!contrato) throw new AppError("Contrato não encontrado.", 404);

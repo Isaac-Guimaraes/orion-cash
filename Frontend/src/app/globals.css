@@ -1,26 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* Declarando o Design System da Órion no padrão v4 */
-  --color-orion-bg: #0F172A;
-  --color-orion-surface: #1E293B;
-  --color-orion-primary: #F59E0B;
-  --color-orion-accent: #06B6D4;
+  /* Design System da Órion (Tailwind v4): use as classes orion-* em vez de hex soltos */
+  --color-orion-bg: #0F172A;            /* fundo da aplicação */
+  --color-orion-deep: #0B1120;          /* menu lateral e campos dentro de modais */
+  --color-orion-surface: #1E293B;       /* superfícies elevadas */
+  --color-orion-card: #1A2235;          /* cartões, tabelas e modais */
+  --color-orion-panel: #131C2D;         /* menus suspensos */
+  --color-orion-primary: #F59E0B;       /* ação principal (âmbar) */
+  --color-orion-primary-hover: #D97706;
+  --color-orion-accent: #06B6D4;        /* destaque secundário (ciano) */
   --color-orion-text: #F8FAFC;
-  --color-orion-muted: #94A3B8;
+  --color-orion-muted: #94A3B8;         /* texto secundário: ~6,9:1 sobre orion-bg */
   --color-orion-success: #10B981;
   --color-orion-danger: #EF4444;
 }
 
 body {
-  /* Usando as variáveis nativas do CSS em vez do theme() */
   background-color: var(--color-orion-bg);
   color: var(--color-orion-text);
+}
+
+/* Foco visível em todo elemento focável pelo teclado (WCAG 2.4.7) */
+:focus-visible {
+  outline: 2px solid var(--color-orion-primary);
+  outline-offset: 2px;
+}
+
+/* Fundo dos modais nativos (<dialog>) */
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* Respeita quem pediu menos movimento ao sistema operacional */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Personalização da barra de rolagem */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: var(--color-orion-bg);

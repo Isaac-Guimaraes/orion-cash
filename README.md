@@ -6,14 +6,15 @@ Sistema web de gestão financeira para empresas de transporte de passageiros: co
 Acesso de demonstração: `demo@orioncash.com` / `OrionDemo2026`
 
 <!-- TODO: adicionar capturas de tela -->
-<!-- ![Dashboard](docs/dashboard.png) -->
+<!-- ![Visão geral](imagens/visao-geral.png)  (a pasta docs/ é local e não vai para o GitHub) -->
 
 ## Funcionalidades
 
 - **Dashboard**: saldo, valores a receber, situação da frota, gráfico dos últimos 6 meses e últimas transações.
-- **Financeiro**: lançamento de receitas e despesas com status (pendente, pago, cancelado), categorias e subcategorias, e vínculo opcional a um veículo ou contrato.
-- **Contratos**: cadastro de clientes com validação de CNPJ e geração do faturamento mensal. O valor total é dividido pelos meses de vigência sem perder centavos (a última parcela absorve o arredondamento), e o faturamento de um mesmo mês nunca é gerado em duplicidade.
-- **Frota**: cadastro de veículos com status (ativo, em manutenção, vendido) e capacidade de passageiros.
+- **Financeiro**: lançamento de receitas e despesas com status (pendente, pago, cancelado), categorias e subcategorias, vínculo opcional a um veículo ou contrato, filtros e exportação em CSV.
+- **Contratos**: cadastro e edição de contratos com validação de CNPJ e geração do faturamento mensal. O valor total é dividido pelos meses de vigência sem perder centavos (a última parcela absorve o arredondamento), e o faturamento de um mesmo mês nunca é gerado em duplicidade.
+- **Frota**: cadastro de ônibus e vans com status (ativo, em manutenção, vendido) e quantidade de lugares.
+- **Acessibilidade**: interface pensada para WCAG 2.2 AA — funciona no celular, só com teclado (foco visível, modais com `<dialog>` que fecham com Esc), com rótulos ligados aos campos e avisos anunciados por leitores de tela.
 - **Notificações** de atividades no sistema.
 - **Autenticação e permissões**: login com JWT, perfis de acesso (ADMIN, SOCIO, VISUALIZADOR) e recuperação de senha por e-mail.
 
@@ -130,7 +131,7 @@ Todas as rotas, exceto login, recuperação de senha e o primeiro cadastro, exig
 | GET | `/dashboard` | Indicadores do painel |
 | GET, POST, PUT, DELETE | `/transacoes` | Receitas e despesas |
 | GET, POST, DELETE | `/categorias` | Categorias e subcategorias |
-| GET, POST, DELETE | `/contratos` | Contratos |
+| GET, POST, PUT, DELETE | `/contratos` | Contratos |
 | POST | `/contratos/faturamento` | Gera as faturas do mês corrente |
 | GET, POST, PUT, DELETE | `/veiculos` | Frota |
 | GET | `/notificacoes` | Notificações |

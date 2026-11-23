@@ -9,6 +9,7 @@ rotasContrato.use(garantirAutenticacao);
 
 rotasContrato.post("/", controlador.criar);
 rotasContrato.get("/", controlador.listar);
+rotasContrato.put("/:id", controlador.atualizar);
 rotasContrato.delete("/:id", controlador.deletar);
 rotasContrato.post("/faturamento", controlador.gerarFaturamento);
 

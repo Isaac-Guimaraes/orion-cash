@@ -3,6 +3,7 @@
 Sistema web de gestão financeira para empresas de transporte de passageiros: controle da frota, dos contratos com clientes (como prefeituras) e de todas as receitas e despesas, com um painel que mostra a saúde financeira do negócio.
 
 **Demo:** https://orion-cash-web.vercel.app
+Acesso de demonstração: `demo@orioncash.com` / `OrionDemo2026`
 
 <!-- TODO: adicionar capturas de tela -->
 <!-- ![Dashboard](docs/dashboard.png) -->

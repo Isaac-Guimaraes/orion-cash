@@ -198,6 +198,15 @@ export default function DashboardHome() {
           </Link>
         </div>
 
+        {/* Carregando e vazio ficam fora da tabela: numa célula da tabela rolável o texto sairia cortado no celular */}
+        {isLoading ? (
+          <p role="status" className="px-6 py-8 text-center text-slate-300">Carregando...</p>
+        ) : transacoes.length === 0 ? (
+          <p className="px-6 py-8 text-center text-slate-300">
+            Nenhuma movimentação ainda. Registre a primeira em{" "}
+            <Link href="/dashboard/financeiro" className={`underline font-bold text-orion-primary rounded ${foco}`}>Financeiro</Link>.
+          </p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">Últimas movimentações</caption>
@@ -210,17 +219,7 @@ export default function DashboardHome() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {isLoading ? (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-300">Carregando...</td></tr>
-              ) : transacoes.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-300 whitespace-normal">
-                    Nenhuma movimentação ainda. Registre a primeira em{" "}
-                    <Link href="/dashboard/financeiro" className={`underline font-bold text-orion-primary rounded ${foco}`}>Financeiro</Link>.
-                  </td>
-                </tr>
-              ) : (
-                transacoes.map(t => (
+              {transacoes.map(t => (
                   <tr key={t.id} className="hover:bg-slate-800/20 transition-colors">
                     <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(t.data)}</td>
                     <td className="px-4 md:px-6 py-4 text-white font-medium">{t.descricao}</td>
@@ -238,11 +237,11 @@ export default function DashboardHome() {
                       <span aria-hidden="true">{t.tipo === "RECEITA" ? "+ " : "− "}</span>{formatarMoeda(t.valor)}
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        )}
       </section>
     </div>
   );

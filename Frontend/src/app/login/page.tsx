@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, FormEvent } from "react";
+import { useEffect, useId, useRef, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowLeft } from "lucide-react";
 import { API_URL } from "@/src/lib/api";
@@ -21,7 +21,18 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
 
+  // Ao trocar de modo, o botão clicado some: o foco vai para o campo E-mail da recuperação
+  // ou, na volta, para o "Esqueceu a senha?" (WCAG 2.4.3)
+  const campoRecuperacao = useRef<HTMLInputElement>(null);
+  const botaoEsqueceu = useRef<HTMLButtonElement>(null);
+  const trocouModo = useRef(false);
+  useEffect(() => {
+    if (!trocouModo.current) return;
+    (isRecovering ? campoRecuperacao : botaoEsqueceu).current?.focus();
+  }, [isRecovering]);
+
   const trocarModo = (recuperar: boolean) => {
+    trocouModo.current = true;
     setIsRecovering(recuperar);
     setErro("");
     setSucesso("");
@@ -90,7 +101,7 @@ export default function LoginPage() {
       )}
 
       {!isRecovering ? (
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form key="login" onSubmit={handleLogin} className="space-y-6">
           <div>
             <label htmlFor={`${id}-email`} className={classeRotuloAutenticacao}>E-mail</label>
             <input
@@ -118,6 +129,7 @@ export default function LoginPage() {
             />
             <div className="flex justify-end mt-2">
               <button
+                ref={botaoEsqueceu}
                 type="button"
                 onClick={() => trocarModo(true)}
                 className={`text-sm text-slate-300 hover:text-orion-primary underline-offset-4 hover:underline min-h-8 px-1 rounded ${foco}`}
@@ -133,17 +145,17 @@ export default function LoginPage() {
           </button>
         </form>
       ) : (
-        <form onSubmit={handleRecuperarSenha} className="space-y-6">
+        <form key="recuperar" onSubmit={handleRecuperarSenha} className="space-y-6">
           <p className="text-sm text-slate-300 text-center leading-relaxed">
             Informe o e-mail que você usa para entrar. Enviaremos um link para criar uma nova senha.
           </p>
           <div>
             <label htmlFor={`${id}-email-recuperacao`} className={classeRotuloAutenticacao}>E-mail</label>
             <input
+              ref={campoRecuperacao}
               id={`${id}-email-recuperacao`}
               type="email"
               required
-              autoFocus
               autoComplete="username"
               inputMode="email"
               value={email}

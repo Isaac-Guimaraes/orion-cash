@@ -77,9 +77,25 @@ function Estrutura({ children }: { children: ReactNode }) {
 
   // Ao abrir a gaveta no celular, o foco vai para dentro dela
   const botaoFecharMenu = useRef<HTMLButtonElement>(null);
+  const botaoAbrirMenu = useRef<HTMLButtonElement>(null);
+  const botaoPerfil = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (menuMovelAberto) botaoFecharMenu.current?.focus();
   }, [menuMovelAberto]);
+
+  // Ao fechar a gaveta ou o menu do usuário, o foco volta ao botão que os abriu (WCAG 2.4.3).
+  // Fica num efeito porque, com a gaveta aberta, o cabeçalho está inerte e não aceita foco.
+  const devolverFoco = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (menuMovelAberto || menuPerfilAberto || !devolverFoco.current) return;
+    devolverFoco.current.focus();
+    devolverFoco.current = null;
+  }, [menuMovelAberto, menuPerfilAberto]);
+
+  const fecharGaveta = () => {
+    devolverFoco.current = botaoAbrirMenu.current;
+    setMenuMovelAberto(false);
+  };
 
   // Ao trocar de página, fecha a gaveta e os menus
   useEffect(() => {
@@ -88,11 +104,23 @@ function Estrutura({ children }: { children: ReactNode }) {
     setNotificacoesAbertas(false);
   }, [pathname]);
 
+  // Se a janela passar para a largura de computador com a gaveta aberta, fecha a gaveta
+  // (senão o conteúdo continuaria inerte com o menu lateral fixo)
+  useEffect(() => {
+    if (!menuMovelAberto) return;
+    const md = window.matchMedia("(min-width: 768px)");
+    const aoMudar = () => { if (md.matches) setMenuMovelAberto(false); };
+    md.addEventListener("change", aoMudar);
+    return () => md.removeEventListener("change", aoMudar);
+  }, [menuMovelAberto]);
+
   // Esc fecha gaveta e menus suspensos (WCAG 1.4.13)
   useEffect(() => {
     if (!menuMovelAberto && !menuPerfilAberto && !notificacoesAbertas) return;
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (menuMovelAberto) devolverFoco.current = botaoAbrirMenu.current;
+      else if (menuPerfilAberto) devolverFoco.current = botaoPerfil.current;
       setMenuMovelAberto(false);
       setMenuPerfilAberto(false);
       setNotificacoesAbertas(false);
@@ -172,16 +200,19 @@ function Estrutura({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-orion-bg text-slate-300">
-      <a
-        href="#conteudo"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-orion-primary focus:text-black focus:font-bold"
-      >
-        Pular para o conteúdo
-      </a>
+      {/* Some com a gaveta aberta: o conteúdo fica inerte e o link não teria para onde levar */}
+      {!menuMovelAberto && (
+        <a
+          href="#conteudo"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-orion-primary focus:text-black focus:font-bold"
+        >
+          Pular para o conteúdo
+        </a>
+      )}
 
       {/* Fundo escuro da gaveta (só no celular) */}
       {menuMovelAberto && (
-        <div className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={() => setMenuMovelAberto(false)} aria-hidden="true" />
+        <div className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={fecharGaveta} aria-hidden="true" />
       )}
 
       {/* MENU LATERAL */}
@@ -198,7 +229,7 @@ function Estrutura({ children }: { children: ReactNode }) {
               ÓRION <span className="text-orion-primary text-sm font-bold tracking-wider">CASH</span>
             </span>
           </Link>
-          <button ref={botaoFecharMenu} type="button" onClick={() => setMenuMovelAberto(false)} className={`${classeBotaoIcone} md:hidden`} aria-label="Fechar menu">
+          <button ref={botaoFecharMenu} type="button" onClick={fecharGaveta} className={`${classeBotaoIcone} md:hidden`} aria-label="Fechar menu">
             <X size={20} aria-hidden="true" />
           </button>
         </div>
@@ -243,11 +274,12 @@ function Estrutura({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* ÁREA PRINCIPAL */}
-      <div className="flex-1 flex flex-col min-w-0 h-dvh overflow-hidden">
+      {/* ÁREA PRINCIPAL — inerte com a gaveta aberta, para o Tab não sair dela (WCAG 2.4.3) */}
+      <div className="flex-1 flex flex-col min-w-0 h-dvh overflow-hidden" inert={menuMovelAberto}>
         <header className="h-16 md:h-20 shrink-0 bg-orion-bg border-b border-slate-800 flex items-center justify-between gap-3 px-4 md:px-8">
           <div className="flex items-center gap-2 min-w-0">
             <button
+              ref={botaoAbrirMenu}
               type="button"
               onClick={() => setMenuMovelAberto(true)}
               className={`${classeBotaoIcone} md:hidden`}
@@ -282,7 +314,7 @@ function Estrutura({ children }: { children: ReactNode }) {
                   <div className="fixed inset-0 z-40" onClick={() => setNotificacoesAbertas(false)} aria-hidden="true" />
                   <div
                     id="painel-notificacoes"
-                    className="absolute right-0 mt-3 w-[min(20rem,calc(100vw-2rem))] bg-orion-card border border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                    className="fixed left-4 right-4 top-[4.5rem] md:absolute md:left-auto md:right-0 md:top-auto md:mt-3 md:w-80 bg-orion-card border border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden"
                   >
                     <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-orion-bg/50">
                       <h2 className="text-white font-bold text-sm">Notificações</h2>
@@ -315,6 +347,7 @@ function Estrutura({ children }: { children: ReactNode }) {
             {/* PERFIL */}
             <div className="relative">
               <button
+                ref={botaoPerfil}
                 type="button"
                 onClick={() => { setMenuPerfilAberto(!menuPerfilAberto); setNotificacoesAbertas(false); }}
                 className={`flex items-center gap-3 md:pl-4 md:border-l border-slate-800 rounded-lg min-h-11 ${foco}`}
@@ -358,7 +391,7 @@ function Estrutura({ children }: { children: ReactNode }) {
       </div>
 
       {/* MEU PERFIL */}
-      <Modal aberto={perfilAberto} aoFechar={() => setPerfilAberto(false)} titulo="Meu perfil" icone={<User size={20} />} largura="max-w-md">
+      <Modal aberto={perfilAberto} aoFechar={() => setPerfilAberto(false)} titulo="Meu perfil" icone={<User size={20} />} largura="max-w-md" devolverFocoPara={botaoPerfil}>
         <form onSubmit={salvarPerfil} noValidate>
           <div className="p-5 sm:p-6 space-y-5">
             <div className="flex items-center gap-4">

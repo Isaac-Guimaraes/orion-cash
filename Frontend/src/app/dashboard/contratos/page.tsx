@@ -279,7 +279,22 @@ export default function ContratosPage() {
         </Campo>
       </section>
 
+      {/* Carregando, erro e vazio ficam fora da tabela: numa célula da tabela rolável o texto sairia cortado no celular */}
       <section className={`${classeCartao} rounded-xl`}>
+        {isLoading ? (
+          <p role="status" className="px-6 py-10 text-center text-slate-300">Carregando contratos...</p>
+        ) : erroCarga ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-rose-400 mb-3">{erroCarga}</p>
+            <button type="button" onClick={buscarContratos} className={classeBotaoSecundario}>Tentar de novo</button>
+          </div>
+        ) : contratosFiltrados.length === 0 ? (
+          <p className="px-6 py-10 text-center text-slate-300">
+            {contratos.length === 0
+              ? <>Nenhum contrato cadastrado. Use <strong className="text-white">Novo contrato</strong> para cadastrar o primeiro.</>
+              : "Nenhum contrato encontrado com estes filtros."}
+          </p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">Contratos: {contratosFiltrados.length} registro(s)</caption>
@@ -294,25 +309,7 @@ export default function ContratosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-300">Carregando contratos...</td></tr>
-              ) : erroCarga ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center">
-                    <p className="text-rose-400 mb-3">{erroCarga}</p>
-                    <button type="button" onClick={buscarContratos} className={classeBotaoSecundario}>Tentar de novo</button>
-                  </td>
-                </tr>
-              ) : contratosFiltrados.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-slate-300 whitespace-normal">
-                    {contratos.length === 0
-                      ? <>Nenhum contrato cadastrado. Use <strong className="text-white">Novo contrato</strong> para cadastrar o primeiro.</>
-                      : "Nenhum contrato encontrado com estes filtros."}
-                  </td>
-                </tr>
-              ) : (
-                contratosFiltrados.map(c => (
+              {contratosFiltrados.map(c => (
                   <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-4 md:px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -346,11 +343,11 @@ export default function ContratosPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       <Modal

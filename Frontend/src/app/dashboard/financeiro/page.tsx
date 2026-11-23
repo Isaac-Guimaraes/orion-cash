@@ -341,7 +341,22 @@ export default function FinanceiroPage() {
       </section>
 
       {/* TABELA */}
+      {/* Carregando, erro e vazio ficam fora da tabela: numa célula da tabela rolável o texto sairia cortado no celular */}
       <section className={`${classeCartao} rounded-xl`}>
+        {isLoading ? (
+          <p role="status" className="px-6 py-10 text-center text-slate-300">Carregando movimentações...</p>
+        ) : erroCarga ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-rose-400 mb-3">{erroCarga}</p>
+            <button type="button" onClick={carregarDados} className={classeBotaoSecundario}>Tentar de novo</button>
+          </div>
+        ) : transacoesFiltradas.length === 0 ? (
+          <p className="px-6 py-10 text-center text-slate-300">
+            {transacoes.length === 0
+              ? <>Nenhuma movimentação registrada ainda. Use <strong className="text-white">Novo lançamento</strong> para registrar a primeira, ou gere as faturas dos contratos em <strong className="text-white">Contratos</strong>.</>
+              : <>Nenhuma movimentação encontrada com estes filtros. <button type="button" onClick={limparFiltros} className={`underline text-orion-primary rounded ${foco}`}>Limpar filtros</button></>}
+          </p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">
@@ -359,25 +374,7 @@ export default function FinanceiroPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {isLoading ? (
-                <tr><td colSpan={7} className="px-6 py-10 text-center text-slate-300">Carregando movimentações...</td></tr>
-              ) : erroCarga ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center">
-                    <p className="text-rose-400 mb-3">{erroCarga}</p>
-                    <button type="button" onClick={carregarDados} className={classeBotaoSecundario}>Tentar de novo</button>
-                  </td>
-                </tr>
-              ) : transacoesFiltradas.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-slate-300 whitespace-normal">
-                    {transacoes.length === 0
-                      ? <>Nenhuma movimentação registrada ainda. Use <strong className="text-white">Novo lançamento</strong> para registrar a primeira, ou gere as faturas dos contratos em <strong className="text-white">Contratos</strong>.</>
-                      : <>Nenhuma movimentação encontrada com estes filtros. <button type="button" onClick={limparFiltros} className={`underline text-orion-primary rounded ${foco}`}>Limpar filtros</button></>}
-                  </td>
-                </tr>
-              ) : (
-                transacoesFiltradas.map(t => (
+              {transacoesFiltradas.map(t => (
                   <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(t.data)}</td>
                     <td className="px-4 md:px-6 py-4 text-white font-medium">{t.descricao}</td>
@@ -414,11 +411,11 @@ export default function FinanceiroPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       {/* NOVO / EDITAR LANÇAMENTO */}

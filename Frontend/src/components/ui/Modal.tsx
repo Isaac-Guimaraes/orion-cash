@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useRef } from "react";
+import { ReactNode, RefObject, useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { classeBotaoIcone } from "@/src/lib/estilos";
 
@@ -11,22 +11,28 @@ interface ModalProps {
   icone?: ReactNode;
   children: ReactNode;
   largura?: string;
+  /** Quem recebe o foco ao fechar, quando o botão que abriu o modal some (ex.: item de um menu suspenso) */
+  devolverFocoPara?: RefObject<HTMLElement | null>;
 }
 
 /**
  * Modal acessível com o <dialog> nativo + showModal():
  * fecha com Esc, prende o foco, deixa o fundo inerte e devolve o foco ao botão que o abriu.
  */
-export function Modal({ aberto, aoFechar, titulo, icone, children, largura = "max-w-lg" }: ModalProps) {
+export function Modal({ aberto, aoFechar, titulo, icone, children, largura = "max-w-lg", devolverFocoPara }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const idTitulo = useId();
+  const estavaAberto = useRef(false);
 
   useEffect(() => {
     const dialogo = ref.current;
     if (!dialogo) return;
     if (aberto && !dialogo.open) dialogo.showModal();
     if (!aberto && dialogo.open) dialogo.close();
-  }, [aberto]);
+    // Roda depois do close() (que devolve o foco ao elemento de origem, se ele ainda existir)
+    if (!aberto && estavaAberto.current) devolverFocoPara?.current?.focus();
+    estavaAberto.current = aberto;
+  }, [aberto, devolverFocoPara]);
 
   return (
     <dialog

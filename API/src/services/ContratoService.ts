@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 import { IsNull } from "typeorm";
 import { AppDataSource } from "../database/data-source";
 import { Contrato } from "../models/Contrato";
@@ -30,14 +31,14 @@ export class ContratoService {
 
   async criar({ nomeCliente, cnpj, valorTotal, valorMensal, dataInicio, dataTermino }: IDadosContrato) {
     if (!nomeCliente?.trim()) {
-      throw new Error("O nome do cliente é obrigatório.");
+      throw new AppError("O nome do cliente é obrigatório.");
     }
 
     // RN-010: CNPJ único. Normaliza para só dígitos, para "12.345.678/0001-90" e
     // "12345678000190" não virarem dois contratos diferentes.
     const cnpjNormalizado = String(cnpj ?? "").replace(/\D/g, "");
     if (cnpjNormalizado.length !== 14) {
-      throw new Error("CNPJ inválido. Informe os 14 dígitos.");
+      throw new AppError("CNPJ inválido. Informe os 14 dígitos.");
     }
 
     // withDeleted: a coluna é UNIQUE no banco também para contratos excluídos (soft delete).
@@ -46,7 +47,7 @@ export class ContratoService {
       withDeleted: true
     });
     if (contratoExiste) {
-      throw new Error(
+      throw new AppError(
         contratoExiste.dataExclusao
           ? "Já existe um contrato excluído com este CNPJ."
           : "Já existe um contrato com este CNPJ."
@@ -57,12 +58,12 @@ export class ContratoService {
     const inicio = paraDataLocal(dataInicio);
     const termino = paraDataLocal(dataTermino);
     if (termino <= inicio) {
-      throw new Error("A data de término deve ser posterior à data de início.");
+      throw new AppError("A data de término deve ser posterior à data de início.");
     }
 
     const total = Number(valorTotal ?? valorMensal);
     if (!Number.isFinite(total) || total <= 0) {
-      throw new Error("O valor deve ser positivo.");
+      throw new AppError("O valor deve ser positivo.");
     }
 
     // Fatiamento: valor total ÷ meses de duração
@@ -89,7 +90,7 @@ export class ContratoService {
 
   async deletar(id: string) {
     const contrato = await this.repositorio.findOneBy({ id });
-    if (!contrato) throw new Error("Contrato não encontrado.");
+    if (!contrato) throw new AppError("Contrato não encontrado.", 404);
 
     // Soft Delete
     await this.repositorio.softDelete(id);
@@ -102,7 +103,7 @@ export class ContratoService {
    * - PENDENTE: atualiza o valor se mudou. PAGO/CANCELADO: não mexe no valor.
    */
   async gerarFaturamentoMensal(usuarioId: string) {
-    if (!usuarioId) throw new Error("ID do usuário é obrigatório.");
+    if (!usuarioId) throw new AppError("ID do usuário é obrigatório.");
 
     const categoria = await AppDataSource.getRepository(Categoria).findOneBy({
       nome: NOME_CATEGORIA_CONTRATO,

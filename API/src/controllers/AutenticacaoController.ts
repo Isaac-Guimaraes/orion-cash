@@ -7,13 +7,8 @@ export class AutenticacaoController {
 
         const servico = new AutenticacaoService();
 
-        try {
-            const resultado = await servico.executar({ email, senha });
-            return res.json(resultado);
-            
-        } catch (erro: any) {
-
-            return res.status(401).json({ mensagem: erro.message });
-        }
+        // Credenciais inválidas viram AppError 401 no service; o handler global responde
+        const resultado = await servico.executar({ email, senha });
+        return res.json(resultado);
     }
 }

@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 import { AppDataSource } from "../database/data-source";
 import { Transacao, TipoTransacao, StatusTransacao } from "../models/Transacao";
 import { Categoria } from "../models/Categoria";
@@ -28,18 +29,18 @@ export class TransacaoService {
     // 1. Validar Categoria
     const categoria = await this.repoCategoria.findOneBy({ id: categoriaId });
     if (!categoria) {
-      throw new Error("Categoria não encontrada.");
+      throw new AppError("Categoria não encontrada.", 404);
     }
 
     if (categoria.tipo !== tipo) {
-      throw new Error(`A categoria selecionada não permite lançamentos do tipo ${tipo}`);
+      throw new AppError(`A categoria selecionada não permite lançamentos do tipo ${tipo}`);
     }
 
     // 2. Validar Veículo (se informado)
     if (veiculoId) {
       const veiculo = await this.repoVeiculo.findOneBy({ id: veiculoId });
       if (!veiculo) {
-        throw new Error("Veículo não encontrado.");
+        throw new AppError("Veículo não encontrado.", 404);
       }
     }
 
@@ -74,7 +75,7 @@ export class TransacaoService {
     });
 
     if (!transacao) {
-      throw new Error("Transação não encontrada.");
+      throw new AppError("Transação não encontrada.", 404);
     }
 
     return transacao;
@@ -84,7 +85,7 @@ export class TransacaoService {
     const transacao = await this.repositorio.findOneBy({ id });
 
     if (!transacao) {
-      throw new Error("Transação não encontrada.");
+      throw new AppError("Transação não encontrada.", 404);
     }
 
     // Se estiver tentando mudar a categoria, precisamos validar o tipo novamente
@@ -95,7 +96,7 @@ export class TransacaoService {
            // Se o usuário não mandou 'tipo' no update, usamos o que já estava no banco
            const tipoFinal = dados.tipo || transacao.tipo;
            if (categoria.tipo !== tipoFinal) {
-               throw new Error(`A nova categoria não aceita lançamentos do tipo ${tipoFinal}`);
+               throw new AppError(`A nova categoria não aceita lançamentos do tipo ${tipoFinal}`);
            }
        }
     }
@@ -113,7 +114,7 @@ export class TransacaoService {
     const transacao = await this.repositorio.findOneBy({ id });
 
     if (!transacao) {
-      throw new Error("Transação não encontrada.");
+      throw new AppError("Transação não encontrada.", 404);
     }
 
     await this.repositorio.remove(transacao);

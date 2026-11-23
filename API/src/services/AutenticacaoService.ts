@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 import { compare } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 import { AppDataSource } from "../database/data-source";
@@ -18,18 +19,18 @@ export class AutenticacaoService {
         });
 
         if (!usuario) {
-            throw new Error("E-mail ou senha incorretos.");
+            throw new AppError("E-mail ou senha incorretos.", 401);
         }
 
         if (!usuario.ativo) {
-            throw new Error("Usuário desativado.");
+            throw new AppError("Usuário desativado.", 403);
         }
 
         // Compara a senha enviada com o Hash do banco
         const senhaConfere = await compare(senha, usuario.senhaHash);
 
         if (!senhaConfere) {
-            throw new Error("E-mail ou senha incorretos.");
+            throw new AppError("E-mail ou senha incorretos.", 401);
         }
 
         // Sem fallback: um segredo padrão conhecido permitiria forjar tokens

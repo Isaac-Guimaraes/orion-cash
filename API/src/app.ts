@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { AppDataSource } from "./database/data-source";
 import { rotas } from "./routes";
 import { SeedCategoriaService } from "./services/SeedCategoriaService";
+import { AppError } from "./errors/AppError";
 
 
 
@@ -37,14 +38,23 @@ app.use(rotas);
 
 // 4. Tratamento Global de Erros (Para não travar o servidor)
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  if(err instanceof Error) {
-    // Se for um erro que nós geramos (ex: "Usuário já existe")
-    return res.status(400).json({
+  // Erro de regra de negócio (ex: "Já existe um usuário com este e-mail"): mensagem segura
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
       status: "erro",
       mensagem: err.message
     });
   }
 
+  // JSON malformado no corpo da requisição
+  if ((err as any).type === "entity.parse.failed") {
+    return res.status(400).json({
+      status: "erro",
+      mensagem: "Corpo da requisição inválido."
+    });
+  }
+
+  // Qualquer outro erro é interno: registra no log e não expõe detalhes ao cliente
   console.error(err);
 
   return res.status(500).json({

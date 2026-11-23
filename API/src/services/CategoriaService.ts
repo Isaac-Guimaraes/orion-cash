@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 import { AppDataSource } from "../database/data-source";
 import { Categoria, TipoTransacao } from "../models/Categoria";
 import { IsNull } from "typeorm";
@@ -17,10 +18,10 @@ export class CategoriaService {
     if (idPai) {
       const paiExiste = await this.repositorio.findOneBy({ id: idPai });
       if (!paiExiste) {
-        throw new Error("Categoria pai não encontrada.");
+        throw new AppError("Categoria pai não encontrada.", 404);
       }
       if (paiExiste.tipo !== tipo) {
-        throw new Error("A subcategoria deve ser do mesmo tipo da categoria pai.");
+        throw new AppError("A subcategoria deve ser do mesmo tipo da categoria pai.");
       }
     }
 
@@ -48,14 +49,14 @@ export class CategoriaService {
           relations: ["subcategorias"]
       });
       
-      if(!categoria) throw new Error("Categoria não encontrada");
+      if(!categoria) throw new AppError("Categoria não encontrada", 404);
       
       if(categoria.isSistema) {
-          throw new Error("Não é possível deletar uma categoria do sistema.");
+          throw new AppError("Não é possível deletar uma categoria do sistema.");
       }
       
       if(categoria.subcategorias.length > 0) {
-          throw new Error("Não é possível deletar categoria que possui subcategorias.");
+          throw new AppError("Não é possível deletar categoria que possui subcategorias.");
       }
       
       await this.repositorio.remove(categoria);

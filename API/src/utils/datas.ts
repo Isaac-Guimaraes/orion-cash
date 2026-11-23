@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 // Utilitários de data e valores monetários.
 //
 // Por que existe: `new Date("2026-01-01")` é interpretado como meia-noite UTC.
@@ -15,7 +16,7 @@ export function paraDataLocal(valor: string | Date): Date {
 
   const partes = REGEX_DATA_ISO.exec(String(valor));
   if (!partes) {
-    throw new Error(`Data inválida: "${valor}". Use o formato AAAA-MM-DD.`);
+    throw new AppError(`Data inválida: "${valor}". Use o formato AAAA-MM-DD.`);
   }
 
   const [, ano, mes, dia] = partes.map(Number);
@@ -23,7 +24,7 @@ export function paraDataLocal(valor: string | Date): Date {
 
   // Rejeita datas como 2026-02-31 (que o JS "rolaria" para março)
   if (data.getFullYear() !== ano || data.getMonth() !== mes - 1 || data.getDate() !== dia) {
-    throw new Error(`Data inválida: "${valor}".`);
+    throw new AppError(`Data inválida: "${valor}".`);
   }
 
   return data;

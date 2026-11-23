@@ -1,3 +1,4 @@
+import { AppError } from "../errors/AppError";
 import { AppDataSource } from "../database/data-source";
 import { Usuario } from "../models/Usuario";
 import crypto from "crypto";
@@ -61,12 +62,12 @@ export class RecuperarSenhaService {
     const usuario = await this.repositorio.findOneBy({ token_recuperacao: token });
 
     if (!usuario) {
-      throw new Error("Token inválido ou já utilizado.");
+      throw new AppError("Token inválido ou já utilizado.");
     }
 
     // Verifica se o tempo já passou
     if (new Date() > usuario.validade_token_recuperacao) {
-      throw new Error("O seu token expirou. Solicite um novo link de recuperação.");
+      throw new AppError("O seu token expirou. Solicite um novo link de recuperação.");
     }
 
     // Encripta a nova senha

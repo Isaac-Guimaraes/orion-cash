@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { RecuperarSenhaService } from "../services/RecuperarSenhaService";
+import { AppError } from "../errors/AppError";
 
 export class RecuperarSenhaController {
   
@@ -22,16 +23,12 @@ export class RecuperarSenhaController {
     const { token, novaSenha } = req.body;
 
     if (!token || !novaSenha) {
-      return res.status(400).json({ mensagem: "Token e nova senha são obrigatórios." });
+      throw new AppError("Token e nova senha são obrigatórios.");
     }
 
     const servico = new RecuperarSenhaService();
-    
-    try {
-      await servico.redefinir(token, novaSenha);
-      return res.status(200).json({ mensagem: "Senha redefinida com sucesso!" });
-    } catch (erro: any) {
-      return res.status(400).json({ mensagem: erro.message });
-    }
+
+    await servico.redefinir(token, novaSenha);
+    return res.status(200).json({ mensagem: "Senha redefinida com sucesso!" });
   }
 }

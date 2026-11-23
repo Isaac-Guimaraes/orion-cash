@@ -16,7 +16,8 @@ export const AppDataSource = new DataSource({
     database: process.env.DATABASE_PATH || "./src/database/orion.sqlite",
     // Em produção, alterações de schema devem ir por migrations (NODE_ENV=production desliga o sync)
     synchronize: process.env.NODE_ENV !== "production",
-    logging: true,
+    // SQL no console só em desenvolvimento; em produção, apenas erros
+    logging: process.env.NODE_ENV === "production" ? ["error"] : true,
     
     entities: [
         Usuario,

@@ -2,8 +2,9 @@
 
 Sistema web de gestão financeira para empresas de transporte de passageiros: controle da frota, dos contratos com clientes (como prefeituras) e de todas as receitas e despesas, com um painel que mostra a saúde financeira do negócio.
 
-<!-- TODO: adicionar o link da demo e capturas de tela -->
-<!-- **Demo:** https://... · Usuário de teste: `demo@orioncash.com` / `...` -->
+**Demo:** https://orion-cash-web.vercel.app
+
+<!-- TODO: adicionar capturas de tela -->
 <!-- ![Dashboard](docs/dashboard.png) -->
 
 ## Funcionalidades
@@ -21,7 +22,8 @@ Sistema web de gestão financeira para empresas de transporte de passageiros: co
 | --- | --- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Recharts, Lucide |
 | Backend | Node.js, Express, TypeScript, TypeORM |
-| Banco de dados | SQLite |
+| Banco de dados | PostgreSQL (Supabase) em produção, SQLite no desenvolvimento local |
+| Hospedagem | Vercel (frontend e API como função serverless) |
 | Segurança | bcrypt, JWT, Helmet, CORS configurável por ambiente |
 | E-mail | Nodemailer (Gmail com senha de app) |
 
@@ -35,6 +37,7 @@ Sistema web de gestão financeira para empresas de transporte de passageiros: co
 │       ├── controllers/     # Recebem a requisição e devolvem a resposta HTTP
 │       ├── services/        # Regras de negócio
 │       ├── models/          # Entidades do TypeORM
+│       ├── database/        # Conexão (Postgres/SQLite) e migrations
 │       ├── middlewares/     # Autenticação (JWT) e autorização por cargo
 │       ├── errors/          # AppError: erros de negócio com status HTTP
 │       └── utils/           # Datas e cálculos monetários
@@ -53,6 +56,8 @@ Algumas decisões de projeto:
 - **Dinheiro em centavos** nos cálculos de parcelas, para não acumular erros de ponto flutuante.
 - **Exclusão lógica** (soft delete) de usuários, veículos e contratos, preservando o histórico financeiro.
 - **Proteção contra enumeração de e-mails**: a recuperação de senha responde da mesma forma para e-mails existentes e inexistentes, e usa um token aleatório que expira em 1 hora.
+- **Banco em produção com menor privilégio**: a API acessa o Postgres com um usuário próprio, dono apenas do schema `orion`, que fica fora da API REST pública da Supabase. O schema evolui só por migrations versionadas.
+- **Pronta para serverless**: a conexão com o banco é aberta na primeira requisição e reaproveitada pelas seguintes, com pool pequeno e o pooler de conexões da Supabase.
 
 ## Como rodar localmente
 
@@ -90,6 +95,25 @@ curl -X POST http://localhost:3030/usuarios \
 
 Depois é só entrar em http://localhost:3000/login com esse e-mail e senha.
 
+## Deploy
+
+O frontend e a API são dois projetos na Vercel, a partir das pastas `Frontend/` e `API/`. A API roda como função serverless em São Paulo (`gru1`, ver `API/vercel.json`), perto do banco.
+
+Variáveis de ambiente da API em produção:
+
+| Variável | Descrição |
+| --- | --- |
+| `DATABASE_URL` | String de conexão do Postgres (pooler da Supabase, porta 6543) |
+| `JWT_SECRET` | Chave longa e aleatória para assinar os tokens |
+| `NODE_ENV` | `production` |
+| `CORS_ORIGIN` | URL do frontend |
+| `FRONTEND_URL` | URL do frontend (link do e-mail de recuperação) |
+| `EMAIL` / `SENHAEMAIL` | Opcional: conta Gmail para a recuperação de senha |
+
+No frontend, `NEXT_PUBLIC_API_URL` aponta para a URL da API.
+
+Para aplicar migrations no banco de produção: `DATABASE_URL=... npm run migration:run` (na pasta `API`).
+
 ## Endpoints da API
 
 Todas as rotas, exceto login, recuperação de senha e o primeiro cadastro, exigem o cabeçalho `Authorization: Bearer <token>`.
@@ -114,7 +138,6 @@ Todas as rotas, exceto login, recuperação de senha e o primeiro cadastro, exig
 ## Próximos passos
 
 - Testes automatizados dos services (autenticação, contratos e faturamento)
-- Migrations do TypeORM no lugar do `synchronize` para evoluir o banco em produção
 - Divisão das páginas maiores do frontend em componentes
 
 ## Autor

@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
+import { decimalParaNumero } from "../database/transformers";
 
 @Entity("contratos")
 export class Contrato {
@@ -12,10 +13,10 @@ export class Contrato {
   cnpj: string;
 
   // Valor total informado no cadastro. Nulo em contratos criados antes de 18/10/2026.
-  @Column({ type: "decimal", precision: 12, scale: 2, nullable: true })
+  @Column({ type: "decimal", precision: 12, scale: 2, transformer: decimalParaNumero, nullable: true })
   valorTotal: number | null;
 
-  @Column({ type: "decimal", precision: 10, scale: 2 }) // Valor da parcela mensal. Ex: 15000.00
+  @Column({ type: "decimal", precision: 10, scale: 2, transformer: decimalParaNumero }) // Valor da parcela mensal. Ex: 15000.00
   valorMensal: number;
 
   @Column({ type: "date" })

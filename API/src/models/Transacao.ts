@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from "typeorm";
+import { decimalParaNumero } from "../database/transformers";
 import { Categoria } from "./Categoria";
 import { Veiculo } from "./Veiculo";
 import { Contrato } from "./Contrato";
@@ -23,7 +24,7 @@ export class Transacao {
   @Column()
   descricao: string;
 
-  @Column({ type: "decimal", precision: 10, scale: 2 })
+  @Column({ type: "decimal", precision: 10, scale: 2, transformer: decimalParaNumero })
   valor: number;
 
   @Column({ type: "simple-enum", enum: TipoTransacao })

@@ -3,27 +3,13 @@ import express, { NextFunction, Request, Response } from 'express';
 import "express-async-errors";
 import cors from 'cors';
 import helmet from 'helmet';
-import { AppDataSource } from "./database/data-source";
+import { inicializarBanco } from "./database/data-source";
 import { rotas } from "./routes";
-import { SeedCategoriaService } from "./services/SeedCategoriaService";
 import { AppError } from "./errors/AppError";
-
-
-
-// 1. Conecta ao Banco de Dados SQLite
-AppDataSource.initialize()
-  .then(async() => {
-    console.log("Banco de Dados Conectado com Sucesso!");
-    const seed = new SeedCategoriaService();
-    await seed.executar();
-  })
-  .catch((erro) => {
-    console.error("Erro ao conectar no banco:", erro);
-  });
 
 const app = express();
 
-// 2. Middlewares (Configurações)
+// 1. Middlewares (Configurações)
 app.use(helmet()); // Protege headers HTTP
 // CORS: só o(s) endereço(s) do frontend podem chamar a API pelo navegador.
 // CORS_ORIGIN aceita vários, separados por vírgula. Sem a variável (desenvolvimento), libera tudo.
@@ -33,10 +19,22 @@ const origensPermitidas = process.env.CORS_ORIGIN
 app.use(cors(origensPermitidas ? { origin: origensPermitidas } : undefined));
 app.use(express.json()); // Permite ler JSON no corpo da requisição
 
-// 3. Rotas
+// 2. Verificação de saúde (não depende do banco)
+app.get("/", (req, res) => {
+  res.json({ app: "Órion Cash API", status: "ok" });
+});
+
+// 3. Banco: conecta na primeira requisição e reaproveita a conexão nas seguintes.
+// Funciona tanto no servidor local quanto em funções serverless (Vercel).
+app.use(async (req, res, next) => {
+  await inicializarBanco();
+  next();
+});
+
+// 4. Rotas
 app.use(rotas);
 
-// 4. Tratamento Global de Erros (Para não travar o servidor)
+// 5. Tratamento Global de Erros (Para não travar o servidor)
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   // Erro de regra de negócio (ex: "Já existe um usuário com este e-mail"): mensagem segura
   if (err instanceof AppError) {
@@ -54,6 +52,14 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     });
   }
 
+  // Postgres: valor em formato inválido para a coluna (ex.: id que não é UUID na URL)
+  if ((err as any).code === "22P02") {
+    return res.status(400).json({
+      status: "erro",
+      mensagem: "Identificador ou valor em formato inválido."
+    });
+  }
+
   // Qualquer outro erro é interno: registra no log e não expõe detalhes ao cliente
   console.error(err);
 
@@ -63,4 +69,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+// Export default: é o que a Vercel procura para rodar o Express como função.
+// Localmente, quem chama app.listen é src/local.ts.
 export { app };
+export default app;

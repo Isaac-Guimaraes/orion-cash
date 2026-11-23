@@ -166,7 +166,7 @@ export default function DashboardHome() {
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#0F172A', border: '1px solid #334155', borderRadius: '12px', color: '#fff' }}
                   itemStyle={{ fontWeight: 'bold' }}
-                  formatter={(value: any, name: string) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), name.toUpperCase()]}
+                  formatter={(value: any, name?: string) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), (name ?? '').toUpperCase()]}
                 />
                 <Area type="monotone" dataKey="receitas" name="Receitas" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorRec)" />
                 <Area type="monotone" dataKey="despesas" name="Despesas" stroke="#F43F5E" strokeWidth={3} fillOpacity={1} fill="url(#colorDesp)" />

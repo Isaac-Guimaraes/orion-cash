@@ -26,7 +26,7 @@ export class Usuario {
   @Column({ nullable: true })
   token_recuperacao: string;
 
-  @Column({ type: "datetime", nullable: true })
+  @Column({ nullable: true }) // tipo inferido de Date: datetime no SQLite, timestamp no Postgres
   validade_token_recuperacao: Date;
 
   @Column({ name: "ativo", default: true })

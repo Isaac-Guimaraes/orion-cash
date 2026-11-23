@@ -5,8 +5,23 @@ Sistema web de gestão financeira para empresas de transporte de passageiros: co
 **Demo:** https://orion-cash-web.vercel.app
 Acesso de demonstração: `demo@orioncash.com` / `OrionDemo2026`
 
-<!-- TODO: adicionar capturas de tela -->
-<!-- ![Visão geral](imagens/visao-geral.png)  (a pasta docs/ é local e não vai para o GitHub) -->
+## Telas
+
+> As capturas usam dados fictícios de demonstração (clientes, veículos e valores inventados).
+
+![Visão geral: receitas, despesas, resultado e frota dos últimos 6 meses, gráfico mensal e últimas movimentações](imagens/visao-geral.jpg)
+
+| Financeiro | Novo lançamento |
+| --- | --- |
+| ![Lista de receitas e despesas com filtros por data, categoria e placa, situação e ações](imagens/financeiro.jpg) | ![Formulário de novo lançamento com tipo, descrição, valor, data, categoria, veículo e situação](imagens/novo-lancamento.jpg) |
+
+| Contratos | Frota |
+| --- | --- |
+| ![Contratos com cliente, CNPJ, vigência, situação e parcela mensal, e o botão Gerar faturas do mês](imagens/contratos.jpg) | ![Frota com placas, modelo, ano, lugares e situação de cada veículo](imagens/frota.jpg) |
+
+| Login | Celular |
+| --- | --- |
+| ![Tela de login com e-mail, senha e recuperação de senha](imagens/login.jpg) | <img src="imagens/celular-visao-geral.png" alt="Visão geral no celular, com menu em gaveta e indicadores empilhados" width="260"> |
 
 ## Funcionalidades
 

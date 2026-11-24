@@ -207,7 +207,7 @@ export default function DashboardHome() {
             <Link href="/dashboard/financeiro" className={`underline font-bold text-orion-primary rounded ${foco}`}>Financeiro</Link>.
           </p>
         ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">Últimas movimentações</caption>
             <thead className="bg-orion-bg/50 text-slate-300 uppercase text-xs font-bold tracking-wide border-b border-slate-700/50">

@@ -295,7 +295,7 @@ export default function ContratosPage() {
               : "Nenhum contrato encontrado com estes filtros."}
           </p>
         ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">Contratos: {contratosFiltrados.length} registro(s)</caption>
             <thead className="bg-orion-bg/50 text-slate-300 text-xs font-bold tracking-wide uppercase border-b border-slate-700/50">

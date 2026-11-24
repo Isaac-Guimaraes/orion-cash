@@ -561,7 +561,8 @@ export default function FinanceiroPage() {
           </p>
         ) : (
         <>
-        <div className={`overflow-x-auto motion-safe:transition-opacity ${carregando ? "opacity-60" : ""}`}>
+        {/* "relative": sem ele, os textos sr-only das células escapam do bloco rolável e esticam a página no celular */}
+        <div className={`relative overflow-x-auto motion-safe:transition-opacity ${carregando ? "opacity-60" : ""}`}>
           <table className="w-full text-left text-sm whitespace-nowrap">
             <caption className="sr-only">
               Movimentações financeiras{temFiltroAplicado ? " (filtradas)" : ""}: página {resultado.pagina} de {resultado.totalPaginas}, {primeiroDaPagina} a {ultimoDaPagina} de {resultado.total}

@@ -569,26 +569,26 @@ export default function FinanceiroPage() {
             </caption>
             <thead className="bg-orion-bg/50 text-slate-300 text-xs font-bold tracking-wide uppercase border-b border-slate-700/50">
               <tr>
-                <th scope="col" className="px-4 md:px-6 py-4">Data</th>
-                <th scope="col" className="px-4 md:px-6 py-4">Descrição</th>
-                <th scope="col" className="px-4 md:px-6 py-4">Veículo</th>
-                <th scope="col" className="px-4 md:px-6 py-4">Categoria</th>
-                <th scope="col" className="px-4 md:px-6 py-4">Status</th>
-                <th scope="col" className="px-4 md:px-6 py-4 text-right">Valor</th>
-                <th scope="col" className="px-4 md:px-6 py-4 text-center">Ações</th>
+                <th scope="col" className="px-4 py-4">Data</th>
+                <th scope="col" className="px-4 py-4">Descrição</th>
+                <th scope="col" className="px-4 py-4">Veículo</th>
+                <th scope="col" className="px-4 py-4">Categoria</th>
+                <th scope="col" className="px-4 py-4">Status</th>
+                <th scope="col" className="px-4 py-4 text-right">Valor</th>
+                <th scope="col" className="px-4 py-4 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
               {resultado.itens.map(t => (
                   <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(t.data)}</td>
+                    <td className="px-4 py-4 text-slate-300">{formatarData(t.data)}</td>
                     {/* A descrição quebra linha: sem isso, descrições longas empurram "Ações" para fora da vista */}
-                    <td className="px-4 md:px-6 py-4 text-white font-medium whitespace-normal min-w-56">{t.descricao}</td>
-                    <td className="px-4 md:px-6 py-4">
+                    <td className="px-4 py-4 text-white font-medium whitespace-normal min-w-56">{t.descricao}</td>
+                    <td className="px-4 py-4">
                       {t.veiculo ? <span className="text-cyan-300 font-mono text-xs font-bold tracking-widest">{t.veiculo.placa}</span> : <span className="text-slate-400" aria-label="Sem veículo">—</span>}
                     </td>
-                    <td className="px-4 md:px-6 py-4 text-slate-300">{t.categoria?.nome ?? "—"}</td>
-                    <td className="px-4 md:px-6 py-4">
+                    <td className="px-4 py-4 text-slate-300">{t.categoria?.nome ?? "—"}</td>
+                    <td className="px-4 py-4">
                       <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
                         t.status === "PAGO" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/30" :
                         t.status === "PENDENTE" ? "text-amber-300 bg-amber-500/10 border-amber-500/30" :
@@ -597,11 +597,11 @@ export default function FinanceiroPage() {
                         {STATUS_TRANSACAO[t.status] ?? t.status}
                       </span>
                     </td>
-                    <td className={`px-4 md:px-6 py-4 text-right font-bold ${t.tipo === "RECEITA" ? "text-emerald-400" : "text-rose-400"}`}>
+                    <td className={`px-4 py-4 text-right font-bold ${t.tipo === "RECEITA" ? "text-emerald-400" : "text-rose-400"}`}>
                       <span className="sr-only">{t.tipo === "RECEITA" ? "Receita de " : "Despesa de "}</span>
                       <span aria-hidden="true">{t.tipo === "RECEITA" ? "+ " : "− "}</span>{formatarMoeda(t.valor)}
                     </td>
-                    <td className="px-4 md:px-6 py-2">
+                    <td className="px-4 py-2">
                       <div className="flex justify-center gap-1">
                         {t.status === "PENDENTE" && (
                           <button type="button" onClick={() => handleMarcarComoPago(t)} className={`${classeBotaoIcone} text-emerald-400`} aria-label={`Marcar "${t.descricao}" como paga`} title="Marcar como pago">

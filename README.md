@@ -144,7 +144,8 @@ Todas as rotas, exceto login, recuperação de senha e o primeiro cadastro, exig
 | GET | `/usuarios` | Lista usuários (ADMIN) |
 | PUT | `/usuarios/:id` | Edita o próprio perfil (ou qualquer um, se ADMIN) |
 | GET | `/dashboard` | Indicadores do painel |
-| GET, POST, PUT, DELETE | `/transacoes` | Receitas e despesas |
+| GET, POST, PUT, DELETE | `/transacoes` | Receitas e despesas. A listagem aceita `pagina` e `porPagina` (até 100) e os filtros `dataInicio`, `dataFim`, `tipo`, `status`, `categoriaId` (inclui subcategorias), `veiculoId` e `busca` (descrição ou placa) |
+| GET | `/transacoes/resumo` | Soma de receitas e despesas com os mesmos filtros (sem os cancelados) |
 | GET, POST, DELETE | `/categorias` | Categorias e subcategorias |
 | GET, POST, PUT, DELETE | `/contratos` | Contratos |
 | POST | `/contratos/faturamento` | Gera as faturas do mês corrente |

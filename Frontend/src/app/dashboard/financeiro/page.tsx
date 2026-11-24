@@ -582,7 +582,8 @@ export default function FinanceiroPage() {
               {resultado.itens.map(t => (
                   <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-4 md:px-6 py-4 text-slate-300">{formatarData(t.data)}</td>
-                    <td className="px-4 md:px-6 py-4 text-white font-medium">{t.descricao}</td>
+                    {/* A descrição quebra linha: sem isso, descrições longas empurram "Ações" para fora da vista */}
+                    <td className="px-4 md:px-6 py-4 text-white font-medium whitespace-normal min-w-56">{t.descricao}</td>
                     <td className="px-4 md:px-6 py-4">
                       {t.veiculo ? <span className="text-cyan-300 font-mono text-xs font-bold tracking-widest">{t.veiculo.placa}</span> : <span className="text-slate-400" aria-label="Sem veículo">—</span>}
                     </td>
